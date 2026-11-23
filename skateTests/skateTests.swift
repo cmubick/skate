@@ -27,6 +27,12 @@ private func play(_ run: inout Run, for limit: TimeInterval = 5, until done: (Ru
     return events
 }
 
+/// Where a tapped ollie from x = 0 reaches its peak, so tests can put things just past it.
+private var ollieTopX: CGFloat {
+    let liftOff = (2 * Tuning.gravity * Tuning.ollieHeight).squareRoot()
+    return (Tuning.startSpeed * liftOff / Tuning.gravity).rounded()
+}
+
 private func tap(_ run: inout Run) -> [RunEvent] {
     run.handle(.press) + run.handle(.release(held: 0.05))
 }
@@ -69,15 +75,14 @@ struct GestureTests {
     @Test func pixelLayoutUsesWholePixels() {
         // An iPhone on its side: 874 x 402 points at 3x.
         let phone = PixelLayout(viewSize: CGSize(width: 874, height: 402), screenScale: 3)
-        #expect(phone.scale == 8)
-        #expect(phone.gameSize.height >= 144)
-        #expect(phone.gameSize.width >= 256)
-        #expect(phone.frame.width * 3 == phone.gameSize.width * 8)
+        #expect(phone.scale == 12)
+        #expect(phone.gameSize == CGSize(width: 218, height: 100))
+        #expect(phone.frame.width * 3 == phone.gameSize.width * 12)
 
         // An iPad is squarer, so it shows more sky rather than less street.
         let pad = PixelLayout(viewSize: CGSize(width: 1376, height: 1032), screenScale: 2)
-        #expect(pad.gameSize.width >= 256)
-        #expect(pad.gameSize.height > 144)
+        #expect(pad.gameSize.width >= PixelLayout.minimumSize.width)
+        #expect(pad.gameSize.height > PixelLayout.minimumSize.height)
     }
 }
 
@@ -188,8 +193,8 @@ struct RunTests {
     }
 
     @Test func landingOnARailGrindsAndRunningOffTheEndBanks() {
-        // A rail that starts where an ollie from x = 0 is on its way down.
-        var run = Run(level: street([.rail(.middle, at: 50, length: 100)]))
+        // A rail that starts just past the top of the ollie, so the board comes down on it.
+        var run = Run(level: street([.rail(.middle, at: ollieTopX + Tuning.skaterHalfWidth, length: 100)]))
         _ = tap(&run)
         let toRail = play(&run) { if case .grinding = $0.state { true } else { false } }
         #expect(toRail.contains(.grindStarted(.fiftyFifty)))
@@ -204,17 +209,18 @@ struct RunTests {
     }
 
     @Test func tappingOnARailPopsOffAndKeepsTheCombo() {
-        var run = Run(level: street([.rail(.middle, at: 50, length: 300)]))
+        var run = Run(level: street([.rail(.middle, at: ollieTopX + Tuning.skaterHalfWidth, length: 300)]))
         _ = tap(&run)
         play(&run) { if case .grinding = $0.state { true } else { false } }
-        #expect(tap(&run) == [.popOff])
+        // Hopping off ends the grind, so the rumble and grind sound stop.
+        #expect(tap(&run) == [.grindEnded, .popOff])
         #expect(run.isAirborne)
         #expect(run.combo.multiplier == 2)
     }
 
     @Test func comingDownOnAPlanterIsABail() {
         // Low enough to clear on the way up, right where the ollie comes down.
-        var run = Run(level: street([.planter(.middle, at: 40, length: 60, height: 12)]))
+        var run = Run(level: street([.planter(.middle, at: ollieTopX, length: 60, height: Tuning.ollieHeight - 6)]))
         _ = tap(&run)
         let events = play(&run) { $0.state != .airborne }
         #expect(events.contains(.bail(.landedOnBlock)))
@@ -235,9 +241,28 @@ struct RunTests {
     }
 
     @Test func spritesAreRectangular() {
-        for sprite in [SkaterArt.roll, SkaterArt.crouch, SkaterArt.air, SkaterArt.grab, SkaterArt.bail,
-                       BoardArt.side, BoardArt.wheelsUp, BoardArt.underside, BoardArt.grip] {
-            #expect(sprite.width == 16)
+        for sprite in [SkaterArt.roll, SkaterArt.crouch, SkaterArt.air, SkaterArt.grab, SkaterArt.bail] {
+            #expect(sprite.width == 22)
+            #expect(sprite.rows.allSatisfy { $0.count == 22 })
         }
+        for sprite in [BoardArt.side, BoardArt.wheelsUp, BoardArt.underside, BoardArt.grip] {
+            #expect(sprite.width == 20)
+            #expect(sprite.rows.allSatisfy { $0.count == 20 })
+        }
+        for glyph in PixelFont.allGlyphs {
+            #expect(glyph.count == PixelFont.glyphHeight)
+            #expect(Set(glyph.map(\.count)).count == 1)
+        }
+    }
+
+    @Test func swipingSidewaysOnTheGroundKickflips() {
+        var run = Run(level: street())
+        _ = run.handle(.press)
+        #expect(run.handle(.swipe(.left)) == [.ollie(charged: false), .trickStarted(.kickflip)])
+        let events = play(&run) { $0.state == .rolling }
+        #expect(events.contains(.landed(points: (50 + 150) * 2, perfect: false)))
+
+        var other = Run(level: street())
+        #expect(other.handle(.swipe(.right)) == [.ollie(charged: false), .trickStarted(.heelflip)])
     }
 }

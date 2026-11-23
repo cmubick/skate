@@ -5,7 +5,10 @@ The design doc is `skate-design-v0.1.md` (exported from the Claude Doc, which is
 ## Decided
 
 - **Engine: SpriteKit**, same as Mahjong and Sevens (UIKit app, one `GameScene`, rules in `skate/Rules`, drawing and sound in `skate/UI`). Android comes later as a port, as Sevens did.
-- **Landscape only.** The game is at least 256 x 144 game pixels, drawn at the largest whole-number scale that fits (8x on an iPhone 18 Pro, so 327 x 150). Extra room shows more street ahead and more sky (`PixelLayout` in `GameViewController.swift`).
+- **Landscape only, big chunky pixels.** The game is at least 180 x 96 game pixels, drawn at the largest whole-number scale that fits (12x on an iPhone 18 Pro, so 218 x 100). The street fills the lower half and the skater is about a third of the screen tall. Extra room shows more street ahead and more sky (`PixelLayout` in `GameViewController.swift`). This is zoomed in from the doc's 256 x 144, so update the doc.
+- **The skater is short and chunky** (22 px wide, big head) with a **yellow cap on backwards**. Final look still depends on which skaters we have.
+- **Swipe sideways on the ground to ollie straight into a flip**: left is a kickflip, right a heelflip. Swipes in the air still do every flip. Not in the doc yet.
+- **Text uses a 5 x 7 pixel font**, about twice the old size.
 - **Working name "Skate"**, bundle ID `com.tuesdaygames.skate`. The real title is still open.
 - **Grinds lock on automatically** and last until the rail ends or you tap to hop off. No hold-to-balance meter for now; one could come back for long rails only.
 - **A few skaters to pick from** (2 to 4). Each needs every trick animation, so the art budget grows per skater. Angie as a skater is still planned on top.
@@ -20,6 +23,7 @@ To do:
 
 - [ ] **Play it on a real phone** and tune `Tuning.swift`: tap/hold split (0.12 s), swipe distance (30 pt), ollie heights, gravity, speeds, grind snap. The simulator can't judge feel or haptics.
 - [ ] **Early presses in the air.** Pressing in the air and holding past 0.12 s starts a grab, so pressing early for a charged ollie just before landing bails you. Try buffering the press as an ollie instead if it bites in playtests.
+- [ ] **Text size.** The 5 x 7 font is big now; the hints along the bottom nearly fill the width. Check on a phone whether the HUD wants to come down a little.
 - [ ] **Second finger.** Only the first finger counts; a tap with another finger while one is down is ignored.
 - [ ] A sound on/off control (`Sounds.shared.isMuted` is there, with no button yet).
 - [ ] A quick in-game tuning panel (debug builds only), so numbers can be changed on the phone.

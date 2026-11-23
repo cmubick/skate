@@ -55,33 +55,37 @@ if tinted {
 
 // A cone on the street.
 let coneColors: [Character: UInt32] = ["o": 0xF83800, "w": 0xFCFCFC, "k": 0x545454]
-draw(["...o...", "..ooo..", "..www..", ".ooooo.", ".ooooo.", "kkkkkkk"], 18, 23, coneColors)
+draw(["...o...", "..ooo..", "..www..", ".ooooo.", ".ooooo.", "kkkkkkk"], 24, 23, coneColors)
 
 // The skater in the air, from SkaterArt.air, and the board under the feet.
 let skater: [Character: UInt32] = [
-    "c": 0x0058F8, "h": 0x503000, "s": 0xE4A06C, "e": 0x101010, "r": 0xF83800, "b": 0x24489C, "w": 0xFCFCFC,
+    "c": 0xF8B800, "k": 0xAC7C00, "h": 0x503000, "s": 0xE4A06C, "e": 0x101010,
+    "r": 0x00A844, "b": 0x24489C, "w": 0xFCFCFC, "g": 0x7C7C7C,
 ]
 draw([
-    "......cccc......",
-    ".....cccccc.....",
-    ".....ccccccccc..",
-    ".....hhssss.....",
-    ".....hsssess....",
-    ".....hssssss....",
-    "......ssss......",
-    ".s...rrrrrr...s.",
-    ".s..rrrrrrrr..s.",
-    "..srrrrrrrrrrs..",
-    ".....rrrrrr.....",
-    ".....rrrrrr.....",
-    ".....bbbbbbb....",
-    "....bbbbbbbbb...",
-    "...bbb.....bbb..",
-    "...bb.......bb..",
-    "...www.....www..",
-    "..wwww.....wwww.",
-], 7, 0, skater)
-draw(["d..............d", ".dddddddddddddd.", "...gg......gg..."], 7, 18, ["d": 0x7C3C00, "g": 0xFCFCFC])
+    "........cccccc........",
+    "......cccccccccc......",
+    ".....cccccccccccc.....",
+    "..kkkkcccccccccccc....",
+    ".....hhhsssssssss.....",
+    ".....hhsssssssess.....",
+    ".....hhssssssssss.....",
+    "......hsssssssss......",
+    ".......ssssssss.......",
+    "........ssssss........",
+    ".s.....rrrrrrrr.....s.",
+    ".ss..rrrrrrrrrrrr..ss.",
+    "..ssrrrrrrrrrrrrrrss..",
+    "......rrrrrrrrrr......",
+    "......bbbbbbbbbb......",
+    ".....bbbbbbbbbbbb.....",
+    "....bbbbbbbbbbbbbb....",
+    "....bbbb......bbbb....",
+    "...wwwwww....wwwwww...",
+    "..ggggggg....ggggggg..",
+], 4, 0, skater)
+draw(["dd................dd", ".dddddddddddddddddd.", "...mmm........mmm...", "...ww..........ww..."], 5, 20,
+     ["d": 0x7C3C00, "m": 0x7C7C7C, "w": 0xFCFCFC])
 
 // Paint the grid at full size.
 let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1024, pixelsHigh: 1024,

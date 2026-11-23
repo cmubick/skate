@@ -5,7 +5,7 @@
 //  Every number that sets how the game feels, in one place. These are starting
 //  guesses from the design doc, to be tuned on a real phone.
 //
-//  World units are game pixels (the screen is about 256 x 144 of them) and seconds.
+//  World units are game pixels (a phone shows about 218 x 100 of them) and seconds.
 //
 
 import CoreGraphics
@@ -23,35 +23,35 @@ nonisolated enum Tuning {
 
     // MARK: Jumping
 
-    static let gravity: CGFloat = 540
+    static let gravity: CGFloat = 440
     /// How high a tapped ollie goes.
-    static let ollieHeight: CGFloat = 22
+    static let ollieHeight: CGFloat = 20
     /// How high a fully charged ollie goes.
-    static let chargedOllieHeight: CGFloat = 46
+    static let chargedOllieHeight: CGFloat = 38
     /// The little hop when you pop off a rail or ledge.
-    static let popOffHeight: CGFloat = 16
+    static let popOffHeight: CGFloat = 14
     /// The bump up when you roll off the end of a rail.
-    static let railEndVelocity: CGFloat = 50
+    static let railEndVelocity: CGFloat = 45
 
     // MARK: Speed
 
-    static let startSpeed: CGFloat = 110
-    static let maxSpeed: CGFloat = 155
+    static let startSpeed: CGFloat = 85
+    static let maxSpeed: CGFloat = 120
     /// The speed you get up again at after a bail.
-    static let speedAfterBail: CGFloat = 90
-    static let speedPerLanding: CGFloat = 4
-    static let speedPerPerfectLanding: CGFloat = 7
+    static let speedAfterBail: CGFloat = 70
+    static let speedPerLanding: CGFloat = 3
+    static let speedPerPerfectLanding: CGFloat = 5
 
     // MARK: Lanes
 
     /// Height on screen between one lane and the next.
-    static let laneSpacing: CGFloat = 13
+    static let laneSpacing: CGFloat = 15
     static let laneSwitchTime: TimeInterval = 0.12
 
     // MARK: Landing and grinding
 
     /// Half the skater's width, for bumping into things.
-    static let skaterHalfWidth: CGFloat = 5
+    static let skaterHalfWidth: CGFloat = 7
     /// How far above a rail you can be when coming down and still lock onto it.
     static let grindSnap: CGFloat = 8
     /// A little give below a rail's top, so landing a frame late still grinds.
@@ -64,5 +64,5 @@ nonisolated enum Tuning {
     // MARK: Bails
 
     static let bailTime: TimeInterval = 0.9
-    static let bailSlideSpeed: CGFloat = 50
+    static let bailSlideSpeed: CGFloat = 40
 }

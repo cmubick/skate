@@ -81,9 +81,18 @@ final class GrindRumble {
             let engine = try CHHapticEngine()
             engine.playsHapticsOnly = true
             engine.isAutoShutdownEnabled = true
+            // If the system stops or resets the engine (the app going to the background,
+            // say), the old player is gone: forget it so the next grind makes a fresh one.
+            engine.stoppedHandler = { [weak self] _ in
+                Task { @MainActor in
+                    self?.player = nil
+                    self?.isRunning = false
+                }
+            }
             engine.resetHandler = { [weak self] in
                 Task { @MainActor in
                     self?.player = nil
+                    self?.isRunning = false
                     try? self?.engine?.start()
                 }
             }
@@ -114,8 +123,8 @@ final class GrindRumble {
         }
     }
 
+    /// Safe to call any time, even when nothing is playing.
     func stop() {
-        guard isRunning else { return }
         try? player?.stop(atTime: CHHapticTimeImmediate)
         isRunning = false
     }

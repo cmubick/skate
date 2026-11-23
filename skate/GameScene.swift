@@ -5,7 +5,7 @@
 //  Draws a run and feeds it touches. All the rules live in `Run`; this file
 //  only turns what the run is doing into pixels, sounds and haptics.
 //
-//  The scene is sized in game pixels (at least 256 x 144), with the origin at the
+//  The scene is sized in game pixels (at least 180 x 96), with the origin at the
 //  bottom left and the street along the bottom.
 //
 
@@ -39,6 +39,10 @@ final class GameScene: SKScene {
     private let board = SKSpriteNode(texture: BoardArt.side.texture())
     private let shadow = SKSpriteNode(texture: StreetArt.shadow())
     private var sparkTimer: TimeInterval = 0
+    /// How far the camera has risen to keep a high jump on screen.
+    private var cameraLift: CGFloat = 0
+    /// True while the grind rumble and sound are on, so they can't be left running.
+    private var grindFeedbackOn = false
 
     private enum Textures {
         static let roll = SkaterArt.roll.texture()
@@ -134,6 +138,13 @@ final class GameScene: SKScene {
         _ = Sounds.shared
         layoutHud()
         render()
+
+        NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive),
+                                               name: UIApplication.willResignActiveNotification, object: nil)
+    }
+
+    @objc private func appWillResignActive() {
+        stopGrindFeedback()
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -147,13 +158,15 @@ final class GameScene: SKScene {
         let ppp = max(pointsPerPixel, 0.01)
         let left = -size.width / 2 + max(4, (safeInsets.left / ppp).rounded() + 2)
         let right = size.width / 2 - max(4, (safeInsets.right / ppp).rounded() + 2)
-        let top = size.height / 2 - max(4, (safeInsets.top / ppp).rounded() + 3)
+        let top = size.height / 2 - max(3, (safeInsets.top / ppp).rounded() + 2)
+        let line = CGFloat(PixelFont.glyphHeight + 3)
+        // Score and best on the left, the combo on its own rows below the middle of the top.
         scoreLabel.position = CGPoint(x: left, y: top)
-        bestLabel.position = CGPoint(x: left, y: top - 8)
-        comboLabel.position = CGPoint(x: 0, y: top)
-        multiplierLabel.position = CGPoint(x: 0, y: top - 8)
+        bestLabel.position = CGPoint(x: left, y: top - line)
+        comboLabel.position = CGPoint(x: 0, y: top - line)
+        multiplierLabel.position = CGPoint(x: 0, y: top - line * 2)
         debugLabel.position = CGPoint(x: right, y: top)
-        hintLabel.position = CGPoint(x: 0, y: -size.height / 2 + 3)
+        hintLabel.position = CGPoint(x: 0, y: -size.height / 2 + 1)
         strips.forEach { $0.layout(viewWidth: size.width) }
     }
 
@@ -207,11 +220,27 @@ final class GameScene: SKScene {
             react(run.step(Self.step))
         }
         sparkTimer += dt
-        render()
+        // A safety net: whatever happened, no rumble or grind sound unless on a rail.
+        if grindFeedbackOn, !run.isGrinding { stopGrindFeedback() }
+        render(dt: dt)
+    }
+
+    private func startGrindFeedback() {
+        grindFeedbackOn = true
+        Haptics.startGrind()
+        Sounds.shared.startLoop(.grind)
+    }
+
+    private func stopGrindFeedback() {
+        grindFeedbackOn = false
+        Haptics.stopGrind()
+        Sounds.shared.stopLoop(.grind)
     }
 
     private func restart() {
+        stopGrindFeedback()
         run = Run(level: level)
+        cameraLift = 0
         finishedAt = nil
         results.removeAllChildren()
         world.children.filter { $0.name == "popup" || $0.name == "spark" }.forEach { $0.removeFromParent() }
@@ -233,14 +262,12 @@ final class GameScene: SKScene {
             case .trickStarted:
                 Sounds.shared.play(.trick)
             case .grindStarted:
-                Haptics.startGrind()
-                Sounds.shared.startLoop(.grind)
+                startGrindFeedback()
             case .grindSwitched:
                 Haptics.tick()
                 Sounds.shared.play(.trick)
             case .grindEnded:
-                Haptics.stopGrind()
-                Sounds.shared.stopLoop(.grind)
+                stopGrindFeedback()
             case .landed(let points, let perfect):
                 Sounds.shared.play(perfect ? .perfect : .land)
                 Haptics.land(perfect: perfect)
@@ -254,8 +281,7 @@ final class GameScene: SKScene {
                 Sounds.shared.play(.lane)
                 Haptics.tick()
             case .finished(let score):
-                Haptics.stopGrind()
-                Sounds.shared.stopLoop(.grind)
+                stopGrindFeedback()
                 Sounds.shared.play(.finish)
                 Haptics.finish()
                 showResults(score: score)
@@ -269,7 +295,7 @@ final class GameScene: SKScene {
         label.text = text
         label.name = "popup"
         label.zPosition = 60
-        label.position = CGPoint(x: skater.position.x, y: (skater.position.y + 32 + rise).rounded())
+        label.position = CGPoint(x: skater.position.x, y: (skater.position.y + 30 + rise).rounded())
         world.addChild(label)
         label.run(.sequence([
             .group([.moveBy(x: 0, y: 10, duration: 0.7), .sequence([.wait(forDuration: 0.4), .fadeOut(withDuration: 0.3)])]),
@@ -296,7 +322,7 @@ final class GameScene: SKScene {
             let label = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
             label.ink = line.1
             label.text = line.0
-            label.position = CGPoint(x: 0, y: CGFloat(20 - index * 9))
+            label.position = CGPoint(x: 0, y: CGFloat(28 - index * 11))
             results.addChild(label)
         }
     }
@@ -307,13 +333,17 @@ final class GameScene: SKScene {
         CGFloat(10 * (Int(lane.rounded()) + 1))
     }
 
-    private func render() {
+    private func render(dt: TimeInterval = 0) {
         let baseline = StreetArt.baseline(forLane: run.drawnLane)
         let z = laneZ(run.drawnLane)
 
-        // Camera: the skater sits 30% in from the left, so you can see what's coming.
+        // Camera: the skater sits 30% in from the left, so you can see what's coming,
+        // and the camera rises when a big jump would take their head off the top.
         let cameraLeft = (run.x - size.width * 0.3).rounded()
-        cam.position = CGPoint(x: cameraLeft + size.width / 2, y: size.height / 2)
+        let skaterTop = baseline + run.height + 30
+        let wantedLift = max(0, skaterTop - size.height)
+        cameraLift += (wantedLift - cameraLift) * CGFloat(min(1, dt * 12))
+        cam.position = CGPoint(x: cameraLeft + size.width / 2, y: size.height / 2 + cameraLift.rounded())
         strips.forEach { $0.update(cameraLeft: cameraLeft) }
 
         skater.position = CGPoint(x: run.x.rounded(), y: (baseline + run.height).rounded())
@@ -353,7 +383,7 @@ final class GameScene: SKScene {
             body.texture = Textures.bail
             body.position = CGPoint(x: -4, y: 0)
             board.texture = Textures.wheelsUp
-            board.position = CGPoint(x: 12, y: 0)
+            board.position = CGPoint(x: 16, y: 0)
         }
         if let texture = body.texture { body.size = texture.size() }
         if let texture = board.texture { board.size = texture.size() }
@@ -405,7 +435,7 @@ final class GameScene: SKScene {
     private func renderHud() {
         scoreLabel.text = "SCORE \(run.score)"
         bestLabel.text = bestScore > 0 ? "BEST \(bestScore)" : ""
-        comboLabel.text = run.combo.text()
+        comboLabel.text = run.combo.text(maxTricks: 2)
         multiplierLabel.text = run.combo.multiplier > 1 ? "X\(run.combo.multiplier)  \(run.combo.total)" : ""
         hintLabel.text = hint()
         #if DEBUG
@@ -416,10 +446,11 @@ final class GameScene: SKScene {
     /// First-run help, shown along the start of the street.
     private func hint() -> String {
         switch run.x {
-        case ..<420: "TAP TO OLLIE. HOLD FOR A BIGGER ONE"
-        case ..<820: "SWIPE UP OR DOWN TO SWITCH LANES"
-        case ..<1300: "LAND ON RAILS TO GRIND. TAP TO HOP OFF"
-        case ..<1800: "SWIPE IN THE AIR TO FLIP"
+        case ..<330: "TAP TO OLLIE. HOLD: HIGHER"
+        case ..<640: "SWIPE UP/DOWN: SWITCH LANES"
+        case ..<1000: "SWIPE SIDEWAYS: KICKFLIP"
+        case ..<1400: "LAND ON RAILS TO GRIND"
+        case ..<1800: "SWIPE IN THE AIR FOR MORE"
         default: ""
         }
     }

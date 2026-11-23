@@ -97,6 +97,11 @@ nonisolated struct Run: Sendable {
 
     var isAirborne: Bool { state == .airborne }
 
+    var isGrinding: Bool {
+        if case .grinding = state { return true }
+        return false
+    }
+
     // MARK: Input
 
     mutating func handle(_ gesture: GestureEvent) -> [RunEvent] {
@@ -146,7 +151,10 @@ nonisolated struct Run: Sendable {
                 switch direction {
                 case .up: switchLane(to: lane.up, events: &events)
                 case .down: switchLane(to: lane.down, events: &events)
-                case .left, .right: break
+                case .left, .right:
+                    // A flip straight off the ground, in one swipe: pop and flip together.
+                    ollie(charge: 0, events: &events)
+                    startAirTrick(Trick.flip(for: direction), events: &events)
                 }
             case .airborne:
                 if airTrick == nil {
@@ -265,6 +273,7 @@ nonisolated struct Run: Sendable {
     }
 
     private mutating func popOff(events: inout [RunEvent]) {
+        if case .grinding = state { events.append(.grindEnded) }
         verticalSpeed = (2 * Tuning.gravity * Tuning.popOffHeight).squareRoot()
         state = .airborne
         sinceTrickEnded = nil

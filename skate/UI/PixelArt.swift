@@ -46,6 +46,7 @@ enum Palette {
     static let brickDark = PixelColor(0x5C2414)
 
     static let yellow = PixelColor(0xF8B800)
+    static let gold = PixelColor(0xAC7C00)
     static let orange = PixelColor(0xF83800)
     static let red = PixelColor(0xD82800)
     static let blue = PixelColor(0x0058F8)
@@ -144,146 +145,132 @@ struct PixelSprite {
 
 // MARK: - The skater
 
+/// A short, chunky skater with a big head and a yellow cap on backwards.
+/// Everything faces right; the cap's brim sticks out the back.
 enum SkaterArt {
     static let colors: [Character: PixelColor] = [
-        "c": Palette.blue, "h": Palette.hair, "s": Palette.skin, "e": Palette.black,
-        "r": Palette.orange, "b": Palette.denim, "w": Palette.white,
+        "c": Palette.yellow, "k": Palette.gold, "h": Palette.hair, "s": Palette.skin, "e": Palette.black,
+        "r": Palette.green, "b": Palette.denim, "w": Palette.white, "g": Palette.grey,
     ]
 
-    static let roll = PixelSprite([
-        "......cccc......",
-        ".....cccccc.....",
-        ".....ccccccccc..",
-        ".....hhssss.....",
-        ".....hsssess....",
-        ".....hssssss....",
-        "......ssss......",
-        ".......ss.......",
-        ".....rrrrrr.....",
-        "....rrrrrrrr....",
-        "...srrrrrrrrs...",
-        "...s.rrrrrr.s...",
-        "..s..rrrrrr..s..",
-        ".....rrrrrr.....",
-        ".....bbbbbb.....",
-        ".....bbbbbb.....",
-        ".....bbb.bbb....",
-        "....bbb...bbb...",
-        "....bb.....bb...",
-        "....bb.....bb...",
-        "...bb.......bb..",
-        "...bb.......bb..",
-        "...bb.......bb..",
-        "..www......www..",
-        "..wwww.....wwww.",
+    /// The head and cap, shared by every pose.
+    private static let head = [
+        "........cccccc........",
+        "......cccccccccc......",
+        ".....cccccccccccc.....",
+        "..kkkkcccccccccccc....",
+        ".....hhhsssssssss.....",
+        ".....hhsssssssess.....",
+        ".....hhssssssssss.....",
+        "......hsssssssss......",
+        ".......ssssssss.......",
+        "........ssssss........",
+    ]
+
+    static let roll = PixelSprite(head + [
+        ".......rrrrrrrr.......",
+        ".....rrrrrrrrrrrr.....",
+        "....srrrrrrrrrrrrs....",
+        "...ss.rrrrrrrrrr.ss...",
+        "......rrrrrrrrrr......",
+        "......bbbbbbbbbb......",
+        "......bbbbbbbbbbb.....",
+        ".....bbbbb...bbbbb....",
+        "....bbbbb.....bbbb....",
+        "....bbbb.......bbbb...",
+        "...wwwwww.....wwwwww..",
+        "..ggggggg....ggggggg..",
     ], colors: colors)
 
-    static let crouch = PixelSprite([
-        "......cccc......",
-        ".....cccccc.....",
-        ".....ccccccccc..",
-        ".....hhssss.....",
-        ".....hsssess....",
-        ".....hssssss....",
-        "......ssss......",
-        "....rrrrrr......",
-        "...rrrrrrrr.....",
-        "..srrrrrrrrss...",
-        "..s.rrrrrr..s...",
-        ".....rrrrrr.....",
-        ".....bbbbbbb....",
-        "....bbbb.bbbb...",
-        "...bbb.....bbb..",
-        "...bbb......bb..",
-        "....bb......bb..",
-        "...www.....www..",
-        "..wwww.....wwww.",
+    /// Knees bent: winding up an ollie, or riding a rail.
+    static let crouch = PixelSprite(head + [
+        ".......rrrrrrrr.......",
+        ".....rrrrrrrrrrrr.....",
+        "....srrrrrrrrrrrrss...",
+        "...ss.rrrrrrrrrr..ss..",
+        "......bbbbbbbbbb......",
+        ".....bbbbbbbbbbbb.....",
+        "....bbbbb....bbbbb....",
+        "...wwwwww....wwwwww...",
+        "..ggggggg....ggggggg..",
     ], colors: colors)
 
-    static let air = PixelSprite([
-        "......cccc......",
-        ".....cccccc.....",
-        ".....ccccccccc..",
-        ".....hhssss.....",
-        ".....hsssess....",
-        ".....hssssss....",
-        "......ssss......",
-        ".s...rrrrrr...s.",
-        ".s..rrrrrrrr..s.",
-        "..srrrrrrrrrrs..",
-        ".....rrrrrr.....",
-        ".....rrrrrr.....",
-        ".....bbbbbbb....",
-        "....bbbbbbbbb...",
-        "...bbb.....bbb..",
-        "...bb.......bb..",
-        "...www.....www..",
-        "..wwww.....wwww.",
+    /// Knees up, arms out.
+    static let air = PixelSprite(head + [
+        ".s.....rrrrrrrr.....s.",
+        ".ss..rrrrrrrrrrrr..ss.",
+        "..ssrrrrrrrrrrrrrrss..",
+        "......rrrrrrrrrr......",
+        "......bbbbbbbbbb......",
+        ".....bbbbbbbbbbbb.....",
+        "....bbbbbbbbbbbbbb....",
+        "....bbbb......bbbb....",
+        "...wwwwww....wwwwww...",
+        "..ggggggg....ggggggg..",
     ], colors: colors)
 
-    static let grab = PixelSprite([
-        "......cccc......",
-        ".....cccccc.....",
-        ".....ccccccccc..",
-        ".....hhssss.....",
-        ".....hsssess....",
-        ".....hssssss....",
-        "......ssss......",
-        ".s...rrrrrr.....",
-        ".s..rrrrrrrr....",
-        "..srrrrrrrrr....",
-        ".....rrrrrrs....",
-        ".....rrrrrr.s...",
-        ".....bbbbbbbs...",
-        "....bbbbbbbbs...",
-        "...bbb.....bs...",
-        "...bb......bs...",
-        "...www.....ws...",
-        "..wwww.....wwww.",
+    /// One hand down on the board.
+    static let grab = PixelSprite(head + [
+        ".s.....rrrrrrrr.......",
+        ".ss..rrrrrrrrrrrr.....",
+        "..ssrrrrrrrrrrrrr.....",
+        "......rrrrrrrrrrs.....",
+        "......bbbbbbbbbbss....",
+        ".....bbbbbbbbbbbbs....",
+        "....bbbbbbbbbbbbbs....",
+        "....bbbb......bbbs....",
+        "...wwwwww....wwwws....",
+        "..ggggggg....gggggss..",
     ], colors: colors)
 
+    /// Flat on the ground.
     static let bail = PixelSprite([
-        "..........cccc..",
-        ".........cccccc.",
-        "..bbbbrrrrrhsse.",
-        "wwbbbbrrrrrssss.",
-        "wwbb..rrrrr.ss..",
-        "......s..s......",
+        "...............kcccc..",
+        "..............cccccccc",
+        "wwbbbbbbrrrrrrhhssssss",
+        "wwbbbbbbrrrrrrhsssesss",
+        "ggbb..bbrrrrrrsssssss.",
+        "........ss..ss.ssss...",
     ], colors: colors)
 }
 
 enum BoardArt {
     static let colors: [Character: PixelColor] = [
-        "d": Palette.brown, "g": Palette.white, "o": Palette.orange, "y": Palette.yellow, "k": Palette.darkGrey,
+        "d": Palette.brown, "m": Palette.grey, "w": Palette.white,
+        "o": Palette.orange, "y": Palette.yellow, "k": Palette.darkGrey,
     ]
 
     /// Side on, wheels down: how it looks rolling.
     static let side = PixelSprite([
-        "d..............d",
-        ".dddddddddddddd.",
-        "...gg......gg...",
+        "dd................dd",
+        ".dddddddddddddddddd.",
+        "...mmm........mmm...",
+        "...ww..........ww...",
     ], colors: colors)
 
     static let wheelsUp = PixelSprite([
-        "...gg......gg...",
-        ".dddddddddddddd.",
-        "d..............d",
+        "...ww..........ww...",
+        "...mmm........mmm...",
+        ".dddddddddddddddddd.",
+        "dd................dd",
     ], colors: colors)
 
     /// Flipped toward you, showing the graphic underneath.
     static let underside = PixelSprite([
-        ".oooooooooooooo.",
-        "oyyoooyyyyoooyyo",
-        "oyyoooyyyyoooyyo",
-        ".oooooooooooooo.",
+        ".oooooooooooooooooo.",
+        "oyyyoooooyyoooooyyyo",
+        "oyyyooooyyyyooooyyyo",
+        "oyyyoooooyyoooooyyyo",
+        ".oooooooooooooooooo.",
     ], colors: colors)
 
     /// Flipped away from you, showing the grip tape.
     static let grip = PixelSprite([
-        ".kkkkkkkkkkkkkk.",
-        "kkkkkkkkkkkkkkkk",
-        "kkkkkkkkkkkkkkkk",
-        ".kkkkkkkkkkkkkk.",
+        ".kkkkkkkkkkkkkkkkkk.",
+        "kkkkkkkkkkkkkkkkkkkk",
+        "kkkkkkkkkkkkkkkkkkkk",
+        "kkkkkkkkkkkkkkkkkkkk",
+        ".kkkkkkkkkkkkkkkkkk.",
     ], colors: colors)
 }
 
@@ -314,7 +301,7 @@ enum FeatureArt {
             canvas.fill(x: 0, y: 0, width: 1, height: height, Palette.darkGrey)
             canvas.fill(x: width - 1, y: 0, width: 1, height: height, Palette.darkGrey)
         case .block:
-            if width <= 8 {
+            if width < 16 {
                 drawCone(&canvas)
             } else {
                 drawPlanter(&canvas)
@@ -364,29 +351,30 @@ enum FeatureArt {
 enum StreetArt {
     /// Feet stand on these lines, in game pixels from the bottom of the screen.
     static func baseline(forLane lane: CGFloat) -> CGFloat {
-        24 + (2 - lane) * Tuning.laneSpacing
+        15 + (2 - lane) * Tuning.laneSpacing
     }
 
     /// The top of the back sidewalk, where the buildings start.
-    static let groundTop = 58
+    static let groundTop = 54
 
-    /// One repeating stretch of sidewalk, street and sidewalk.
+    /// One repeating stretch of sidewalk, street and sidewalk. The front and middle
+    /// lanes are in the street, the back lane on the far sidewalk.
     static func ground(width: Int = 64) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: groundTop)
         // Near sidewalk.
-        canvas.fill(x: 0, y: 0, width: width, height: 12, Palette.lightGrey)
-        for x in stride(from: 0, to: width, by: 16) { canvas.fill(x: x, y: 0, width: 1, height: 12, Palette.grey) }
-        // Near curb.
-        canvas.fill(x: 0, y: 12, width: width, height: 2, Palette.white)
-        canvas.fill(x: 0, y: 14, width: width, height: 1, Palette.grey)
+        canvas.fill(x: 0, y: 0, width: width, height: 7, Palette.lightGrey)
+        for x in stride(from: 0, to: width, by: 16) { canvas.fill(x: x, y: 0, width: 1, height: 7, Palette.grey) }
+        // Near curb and gutter.
+        canvas.fill(x: 0, y: 7, width: width, height: 2, Palette.white)
+        canvas.fill(x: 0, y: 9, width: width, height: 1, Palette.grey)
         // Street, with a dashed line between the front and middle lanes.
-        canvas.fill(x: 0, y: 15, width: width, height: 28, Palette.asphalt)
-        for x in stride(from: 0, to: width, by: 16) { canvas.fill(x: x, y: 30, width: 8, height: 1, Palette.yellow) }
+        canvas.fill(x: 0, y: 10, width: width, height: 27, Palette.asphalt)
+        for x in stride(from: 0, to: width, by: 16) { canvas.fill(x: x, y: 22, width: 8, height: 1, Palette.yellow) }
         // Far curb and the back sidewalk.
-        canvas.fill(x: 0, y: 43, width: width, height: 1, Palette.grey)
-        canvas.fill(x: 0, y: 44, width: width, height: 2, Palette.white)
-        canvas.fill(x: 0, y: 46, width: width, height: groundTop - 46, Palette.lightGrey)
-        for x in stride(from: 8, to: width, by: 16) { canvas.fill(x: x, y: 46, width: 1, height: groundTop - 46, Palette.grey) }
+        canvas.fill(x: 0, y: 37, width: width, height: 1, Palette.grey)
+        canvas.fill(x: 0, y: 38, width: width, height: 2, Palette.white)
+        canvas.fill(x: 0, y: 40, width: width, height: groundTop - 40, Palette.lightGrey)
+        for x in stride(from: 8, to: width, by: 16) { canvas.fill(x: x, y: 40, width: 1, height: groundTop - 40, Palette.grey) }
         canvas.fill(x: 0, y: groundTop - 1, width: width, height: 1, Palette.grey)
         return canvas.texture()
     }
@@ -440,7 +428,7 @@ enum StreetArt {
     }
 
     /// A soft oval shadow on the ground.
-    static func shadow(width: Int = 12) -> SKTexture {
+    static func shadow(width: Int = 18) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: 2)
         canvas.fill(x: 1, y: 0, width: width - 2, height: 2, Palette.shadow)
         canvas.fill(x: 0, y: 1, width: width, height: 1, Palette.shadow)
@@ -450,36 +438,58 @@ enum StreetArt {
 
 // MARK: - Text
 
-/// A 5-pixel-high font: capitals, digits and a little punctuation. Most letters are
-/// 3 pixels wide; M, N, W, K and Q need more room to read.
+/// A 7-pixel-high font, 5 pixels wide for most letters: capitals, digits and a
+/// little punctuation. Big enough to read at a glance mid-run.
 enum PixelFont {
-    static let glyphHeight = 5
+    static let glyphHeight = 7
     /// Space between letters.
     static let gap = 1
 
     private static let glyphs: [Character: [String]] = [
-        "A": [".#.", "#.#", "###", "#.#", "#.#"], "B": ["##.", "#.#", "##.", "#.#", "##."],
-        "C": [".##", "#..", "#..", "#..", ".##"], "D": ["##.", "#.#", "#.#", "#.#", "##."],
-        "E": ["###", "#..", "##.", "#..", "###"], "F": ["###", "#..", "##.", "#..", "#.."],
-        "G": [".##", "#..", "#.#", "#.#", ".##"], "H": ["#.#", "#.#", "###", "#.#", "#.#"],
-        "I": ["###", ".#.", ".#.", ".#.", "###"], "J": ["..#", "..#", "..#", "#.#", ".#."],
-        "K": ["#..#", "#.#.", "##..", "#.#.", "#..#"], "L": ["#..", "#..", "#..", "#..", "###"],
-        "M": ["#...#", "##.##", "#.#.#", "#...#", "#...#"], "N": ["#..#", "##.#", "#.##", "#..#", "#..#"],
-        "O": [".#.", "#.#", "#.#", "#.#", ".#."], "P": ["##.", "#.#", "##.", "#..", "#.."],
-        "Q": [".##.", "#..#", "#..#", "#.#.", ".#.#"], "R": ["##.", "#.#", "##.", "#.#", "#.#"],
-        "S": [".##", "#..", ".#.", "..#", "##."], "T": ["###", ".#.", ".#.", ".#.", ".#."],
-        "U": ["#.#", "#.#", "#.#", "#.#", "###"], "V": ["#.#", "#.#", "#.#", "#.#", ".#."],
-        "W": ["#...#", "#...#", "#.#.#", "##.##", "#...#"], "X": ["#.#", "#.#", ".#.", "#.#", "#.#"],
-        "Y": ["#.#", "#.#", ".#.", ".#.", ".#."], "Z": ["###", "..#", ".#.", "#..", "###"],
-        "0": ["###", "#.#", "#.#", "#.#", "###"], "1": [".#.", "##.", ".#.", ".#.", "###"],
-        "2": ["##.", "..#", ".#.", "#..", "###"], "3": ["##.", "..#", ".#.", "..#", "##."],
-        "4": ["#.#", "#.#", "###", "..#", "..#"], "5": ["###", "#..", "##.", "..#", "##."],
-        "6": [".##", "#..", "###", "#.#", "###"], "7": ["###", "..#", ".#.", ".#.", ".#."],
-        "8": ["###", "#.#", "###", "#.#", "###"], "9": ["###", "#.#", "###", "..#", "##."],
-        "+": ["...", ".#.", "###", ".#.", "..."], "-": ["...", "...", "###", "...", "..."],
-        "!": [".#.", ".#.", ".#.", "...", ".#."], ":": ["...", ".#.", "...", ".#.", "..."],
-        ".": ["...", "...", "...", "...", ".#."], "/": ["..#", "..#", ".#.", "#..", "#.."],
-        "?": ["##.", "..#", ".#.", "...", ".#."], " ": ["...", "...", "...", "...", "..."],
+        "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+        "B": ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."],
+        "C": [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
+        "D": ["####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."],
+        "E": ["#####", "#....", "#....", "####.", "#....", "#....", "#####"],
+        "F": ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
+        "G": [".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".####"],
+        "H": ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+        "I": ["###", ".#.", ".#.", ".#.", ".#.", ".#.", "###"],
+        "J": ["..###", "...#.", "...#.", "...#.", "...#.", "#..#.", ".##.."],
+        "K": ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
+        "L": ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
+        "M": ["#...#", "##.##", "#.#.#", "#.#.#", "#...#", "#...#", "#...#"],
+        "N": ["#...#", "#...#", "##..#", "#.#.#", "#..##", "#...#", "#...#"],
+        "O": [".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+        "P": ["####.", "#...#", "#...#", "####.", "#....", "#....", "#...."],
+        "Q": [".###.", "#...#", "#...#", "#...#", "#.#.#", "#..#.", ".##.#"],
+        "R": ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
+        "S": [".####", "#....", "#....", ".###.", "....#", "....#", "####."],
+        "T": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
+        "U": ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+        "V": ["#...#", "#...#", "#...#", "#...#", "#...#", ".#.#.", "..#.."],
+        "W": ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "#.#.#", ".#.#."],
+        "X": ["#...#", "#...#", ".#.#.", "..#..", ".#.#.", "#...#", "#...#"],
+        "Y": ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
+        "Z": ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
+        "0": [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."],
+        "1": ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
+        "2": [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
+        "3": ["#####", "...#.", "..#..", "...#.", "....#", "#...#", ".###."],
+        "4": ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
+        "5": ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+        "6": ["..##.", ".#...", "#....", "####.", "#...#", "#...#", ".###."],
+        "7": ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
+        "8": [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."],
+        "9": [".###.", "#...#", "#...#", ".####", "....#", "...#.", ".##.."],
+        "+": [".....", "..#..", "..#..", "#####", "..#..", "..#..", "....."],
+        "-": ["...", "...", "...", "###", "...", "...", "..."],
+        "!": ["#", "#", "#", "#", "#", ".", "#"],
+        ":": [".", ".", "#", ".", ".", "#", "."],
+        ".": [".", ".", ".", ".", ".", ".", "#"],
+        "/": ["....#", "....#", "...#.", "..#..", ".#...", "#....", "#...."],
+        "?": [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
+        " ": ["...", "...", "...", "...", "...", "...", "..."],
     ]
 
     private static func glyph(_ character: Character) -> [String] {
@@ -513,6 +523,9 @@ enum PixelFont {
         cache[key] = texture
         return texture
     }
+
+    /// Every glyph, for checking they're all the right size.
+    static var allGlyphs: [[String]] { Array(glyphs.values) }
 }
 
 // MARK: - Randomness

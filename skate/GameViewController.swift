@@ -57,11 +57,12 @@ class GameViewController: UIViewController {
 
 /// Works out how big the game is in its own pixels, and how big a frame to show it in.
 ///
-/// The game is at least 256 x 144 pixels. Each game pixel is drawn as the largest whole
-/// number of screen pixels that still fits that, and any room left over shows more of
-/// the street to the right and more sky above.
+/// The game is at least 180 x 96 pixels: big, chunky pixels so the skater and the street
+/// fill the screen. Each game pixel is drawn as the largest whole number of screen pixels
+/// that still fits that (12 on an iPhone 18 Pro, giving 218 x 100), and any room left
+/// over shows more of the street to the right and more sky above.
 nonisolated struct PixelLayout: Equatable {
-    static let minimumSize = CGSize(width: 256, height: 144)
+    static let minimumSize = CGSize(width: 180, height: 96)
 
     /// Screen pixels per game pixel.
     let scale: Int

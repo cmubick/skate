@@ -40,19 +40,19 @@ nonisolated struct Feature: Equatable, Sendable {
     var end: CGFloat { x + length }
     var isGrindable: Bool { kind != .block }
 
-    static func rail(_ lane: Lane, at x: CGFloat, length: CGFloat, height: CGFloat = 12) -> Feature {
+    static func rail(_ lane: Lane, at x: CGFloat, length: CGFloat, height: CGFloat = 14) -> Feature {
         Feature(kind: .rail, lane: lane, x: x, length: length, height: height)
     }
 
-    static func ledge(_ lane: Lane, at x: CGFloat, length: CGFloat, height: CGFloat = 9) -> Feature {
+    static func ledge(_ lane: Lane, at x: CGFloat, length: CGFloat, height: CGFloat = 10) -> Feature {
         Feature(kind: .ledge, lane: lane, x: x, length: length, height: height)
     }
 
     static func cone(_ lane: Lane, at x: CGFloat) -> Feature {
-        Feature(kind: .block, lane: lane, x: x, length: 7, height: 10)
+        Feature(kind: .block, lane: lane, x: x, length: 9, height: 12)
     }
 
-    static func planter(_ lane: Lane, at x: CGFloat, length: CGFloat = 20, height: CGFloat = 15) -> Feature {
+    static func planter(_ lane: Lane, at x: CGFloat, length: CGFloat = 24, height: CGFloat = 16) -> Feature {
         Feature(kind: .block, lane: lane, x: x, length: length, height: height)
     }
 }
@@ -67,31 +67,31 @@ nonisolated struct Level: Equatable, Sendable {
 
     /// The grey-box street for the feel prototype (milestone 1): a bit of everything,
     /// about 30 seconds long.
-    static let feelStreet = Level(name: "GREY BOX STREET", length: 3700, features: [
+    static let feelStreet = Level(name: "GREY BOX STREET", length: 2960, features: [
         // Warm up: single cones to ollie over.
-        .cone(.middle, at: 300),
-        .cone(.front, at: 440),
+        .cone(.middle, at: 240),
+        .cone(.front, at: 352),
         // First rail, in the back lane where rails live.
-        .rail(.back, at: 560, length: 96),
-        .ledge(.middle, at: 760, length: 64),
-        .cone(.front, at: 900), .cone(.front, at: 960),
-        .rail(.middle, at: 1080, length: 128),
-        .cone(.back, at: 1120),
-        .ledge(.back, at: 1320, length: 96),
-        .cone(.front, at: 1340),
+        .rail(.back, at: 448, length: 80),
+        .ledge(.middle, at: 608, length: 56),
+        .cone(.front, at: 720), .cone(.front, at: 768),
+        .rail(.middle, at: 864, length: 104),
+        .cone(.back, at: 896),
+        .ledge(.back, at: 1056, length: 80),
+        .cone(.front, at: 1072),
         // A pair of cones close together: needs a charged ollie, or a lane switch.
-        .cone(.middle, at: 1520), .cone(.middle, at: 1556),
-        .rail(.front, at: 1680, length: 160),
+        .cone(.middle, at: 1216), .cone(.middle, at: 1245),
+        .rail(.front, at: 1344, length: 128),
         // Two short rails with a gap: transfer from one to the other.
-        .rail(.back, at: 1920, length: 64), .rail(.back, at: 2030, length: 64),
-        .planter(.middle, at: 2200),
-        .ledge(.middle, at: 2360, length: 128),
-        .cone(.back, at: 2380), .cone(.front, at: 2410),
-        .rail(.back, at: 2620, length: 192),
-        .cone(.front, at: 2840), .cone(.front, at: 2900), .cone(.front, at: 2960),
-        .rail(.middle, at: 3060, length: 96),
-        .ledge(.middle, at: 3220, length: 96),
+        .rail(.back, at: 1536, length: 56), .rail(.back, at: 1624, length: 56),
+        .planter(.middle, at: 1760),
+        .ledge(.middle, at: 1888, length: 104),
+        .cone(.back, at: 1904), .cone(.front, at: 1928),
+        .rail(.back, at: 2096, length: 160),
+        .cone(.front, at: 2272), .cone(.front, at: 2320), .cone(.front, at: 2368),
+        .rail(.middle, at: 2448, length: 80),
+        .ledge(.middle, at: 2576, length: 80),
         // Cones across every lane: no way round, ollie it.
-        .cone(.back, at: 3440), .cone(.middle, at: 3460), .cone(.front, at: 3480),
+        .cone(.back, at: 2752), .cone(.middle, at: 2768), .cone(.front, at: 2784),
     ])
 }
