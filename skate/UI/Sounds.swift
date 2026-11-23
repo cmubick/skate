@@ -25,6 +25,8 @@ nonisolated enum Sound: CaseIterable, Sendable {
     case bail
     /// Crossing the finish line.
     case finish
+    /// Picking up one of the city's letters.
+    case letter
 }
 
 /// Builds each sound as 16-bit mono WAV data.
@@ -106,6 +108,8 @@ nonisolated enum SoundSynth {
         case .bail:
             return mix(noise(seconds: 0.35, hold: 12, level: 0.45, decay: 0.12, seed: 5),
                        square(from: 300, to: 60, seconds: 0.3, level: 0.2))
+        case .letter:
+            return [988.0, 1319, 1976].flatMap { square(from: $0, to: $0, seconds: 0.05, level: 0.16, duty: 0.25) }
         case .finish:
             let notes: [Double] = [523, 659, 784, 1047]
             return notes.flatMap { square(from: $0, to: $0, seconds: 0.1, level: 0.18, duty: 0.25) }

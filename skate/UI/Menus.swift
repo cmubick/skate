@@ -1,0 +1,421 @@
+//
+//  Menus.swift
+//  skate
+//
+//  The title screen, city picker, spot list and skater builder, all in one
+//  scene that swaps pages. Plus the pieces every scene shares: a base scene
+//  that knows the safe area, and pixel buttons.
+//
+
+import SpriteKit
+import UIKit
+
+/// Moves between the menus and the game. The view controller does this.
+protocol SceneRouter: AnyObject {
+    func showMenu(_ page: MenuScene.Page)
+    func play(_ level: Level, in city: City)
+}
+
+/// A scene sized in game pixels that keeps its controls inside the safe area.
+class PixelScene: SKScene {
+    weak var router: SceneRouter?
+    /// The view's safe area, in points.
+    var safeInsets: UIEdgeInsets = .zero { didSet { if oldValue != safeInsets { layoutScene() } } }
+    /// How many points one game pixel takes up on screen.
+    var pointsPerPixel: CGFloat = 1 { didSet { if oldValue != pointsPerPixel { layoutScene() } } }
+
+    /// The safe area in game pixels, with the origin at the bottom left of the screen.
+    var safeFrame: CGRect {
+        let ppp = max(pointsPerPixel, 0.01)
+        let left = max(4, (safeInsets.left / ppp).rounded() + 2)
+        let right = max(4, (safeInsets.right / ppp).rounded() + 2)
+        let top = max(3, (safeInsets.top / ppp).rounded() + 2)
+        let bottom = max(2, (safeInsets.bottom / ppp).rounded())
+        return CGRect(x: left, y: bottom, width: size.width - left - right, height: size.height - top - bottom)
+    }
+
+    override func didChangeSize(_ oldSize: CGSize) {
+        super.didChangeSize(oldSize)
+        layoutScene()
+    }
+
+    /// Put things in place for the current size and safe area.
+    func layoutScene() {}
+}
+
+/// A tappable box with a pixel-font label.
+final class PixelButton: SKNode {
+    var action: () -> Void
+    var isEnabled = true {
+        didSet { alpha = isEnabled ? 1 : 0.4 }
+    }
+    private let box = SKSpriteNode()
+    private let label = PixelLabel(anchor: .zero)
+    private let minWidth: Int
+    private let color: PixelColor
+
+    var text: String {
+        get { label.text }
+        set { label.text = newValue; redraw() }
+    }
+
+    init(_ text: String, minWidth: CGFloat = 0, color: PixelColor = PixelColor(0x24308C), action: @escaping () -> Void) {
+        self.action = action
+        self.minWidth = Int(minWidth)
+        self.color = color
+        super.init()
+        box.anchorPoint = .zero
+        addChild(box)
+        label.zPosition = 1
+        addChild(label)
+        label.text = text
+        redraw()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private var boxRect: CGRect {
+        CGRect(origin: box.position, size: box.size)
+    }
+
+    private func redraw() {
+        // Everything on whole pixels, so the text stays sharp.
+        let textWidth = PixelFont.width(of: label.text)
+        let width = max(minWidth, textWidth + 8)
+        let height = PixelFont.glyphHeight + 6
+        box.texture = UIArt.box(width: width, height: height, fill: color)
+        box.size = CGSize(width: width, height: height)
+        box.position = CGPoint(x: -(width / 2), y: -(height / 2))
+        label.position = CGPoint(x: -(width / 2) + (width - textWidth) / 2, y: -(height / 2) + 2)
+    }
+
+    /// True if the point (in the button's parent's coordinates) is on the button,
+    /// with a little extra room for fingers.
+    func hit(_ point: CGPoint) -> Bool {
+        guard isEnabled, !isHidden, parent != nil else { return false }
+        return boxRect.offsetBy(dx: position.x, dy: position.y).insetBy(dx: -3, dy: -3).contains(point)
+    }
+}
+
+enum UIArt {
+    /// A rounded box with a light rim.
+    static func box(width: Int, height: Int, fill: PixelColor) -> SKTexture {
+        var canvas = PixelCanvas(width: width, height: height)
+        canvas.fill(x: 1, y: 0, width: width - 2, height: height, Palette.black)
+        canvas.fill(x: 0, y: 1, width: width, height: height - 2, Palette.black)
+        canvas.fill(x: 1, y: 1, width: width - 2, height: height - 2, fill)
+        canvas.fill(x: 1, y: height - 2, width: width - 2, height: 1, PixelColor(0xFCFCFC, alpha: 90))
+        return canvas.texture()
+    }
+
+    /// A see-through dark panel to sit text on.
+    static func panel(width: Int, height: Int) -> SKTexture {
+        var canvas = PixelCanvas(width: width, height: height)
+        canvas.fill(x: 1, y: 0, width: width - 2, height: height, PixelColor(0x000000, alpha: 150))
+        canvas.fill(x: 0, y: 1, width: width, height: height - 2, PixelColor(0x000000, alpha: 150))
+        return canvas.texture()
+    }
+}
+
+// MARK: - Menus
+
+final class MenuScene: PixelScene {
+    enum Page: Equatable {
+        case title
+        case cities
+        case spots(City)
+        case builder
+    }
+
+    private(set) var page: Page
+    private let progress = Progress.shared
+    private let backdrop = SKNode()
+    private var strips: [ParallaxStrip] = []
+    private let content = SKNode()
+    private var buttons: [PixelButton] = []
+    private var scroll: CGFloat = 0
+    private var lastUpdate: TimeInterval?
+    private var touchStart: CGPoint?
+
+    /// Which city the city picker is showing.
+    private var cityIndex = 0
+
+    init(size: CGSize, page: Page) {
+        self.page = page
+        super.init(size: size)
+        if case .spots(let city) = page, let index = City.all.firstIndex(of: city) { cityIndex = index }
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didMove(to view: SKView) {
+        anchorPoint = .zero
+        let look = ThemeArt.look(for: .downtown)
+        backgroundColor = look.sky.skColor
+        addChild(backdrop)
+        let groundTop = CGFloat(StreetArt.groundTop)
+        strips = look.layers.enumerated().map { index, layer in
+            ParallaxStrip(texture: layer.texture, factor: layer.factor, y: groundTop + layer.lift, z: CGFloat(-30 + index * 10))
+        } + [ParallaxStrip(texture: look.ground, factor: 1, y: 0, z: -5)]
+        strips.forEach { backdrop.addChild($0.node) }
+        content.zPosition = 50
+        addChild(content)
+        layoutScene()
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        let dt = min(0.1, currentTime - (lastUpdate ?? currentTime))
+        lastUpdate = currentTime
+        // The street drifts by behind the menus.
+        scroll += CGFloat(dt) * 24
+        backdrop.position.x = -scroll.rounded()
+        strips.forEach { $0.update(cameraLeft: scroll.rounded()) }
+    }
+
+    func show(_ page: Page) {
+        self.page = page
+        layoutScene()
+    }
+
+    override func layoutScene() {
+        guard view != nil else { return }
+        strips.forEach { $0.layout(viewWidth: size.width + 64) }
+        content.removeAllChildren()
+        buttons.removeAll()
+        switch page {
+        case .title: buildTitle()
+        case .cities: buildCities()
+        case .spots(let city): buildSpots(city)
+        case .builder: buildBuilder()
+        }
+    }
+
+    // MARK: Building blocks
+
+    @discardableResult
+    private func label(_ text: String, at point: CGPoint, anchor: CGPoint = CGPoint(x: 0.5, y: 0.5),
+                       color: PixelColor = Palette.white, scale: CGFloat = 1) -> PixelLabel {
+        let label = PixelLabel(anchor: anchor)
+        label.ink = color
+        label.text = text
+        label.setScale(scale)
+        label.position = CGPoint(x: point.x.rounded(), y: point.y.rounded())
+        content.addChild(label)
+        return label
+    }
+
+    @discardableResult
+    private func button(_ text: String, at point: CGPoint, minWidth: CGFloat = 0,
+                        color: PixelColor = PixelColor(0x24308C), action: @escaping () -> Void) -> PixelButton {
+        let button = PixelButton(text, minWidth: minWidth, color: color, action: action)
+        button.position = CGPoint(x: point.x.rounded(), y: point.y.rounded())
+        content.addChild(button)
+        buttons.append(button)
+        return button
+    }
+
+    private func panel(_ rect: CGRect) {
+        let panel = SKSpriteNode(texture: UIArt.panel(width: Int(rect.width), height: Int(rect.height)))
+        panel.anchorPoint = .zero
+        panel.position = CGPoint(x: rect.minX.rounded(), y: rect.minY.rounded())
+        panel.zPosition = -1
+        content.addChild(panel)
+    }
+
+    private func skaterPreview(at point: CGPoint, scale: CGFloat) {
+        let preview = SKSpriteNode(texture: SkaterLook(outfit: progress.outfit).standing)
+        preview.anchorPoint = CGPoint(x: 0.5, y: 0)
+        preview.setScale(scale)
+        preview.position = CGPoint(x: point.x.rounded(), y: point.y.rounded())
+        content.addChild(preview)
+        let shadow = SKSpriteNode(texture: StreetArt.shadow(width: 20))
+        shadow.setScale(scale)
+        shadow.position = CGPoint(x: point.x.rounded(), y: point.y.rounded())
+        shadow.zPosition = -0.5
+        content.addChild(shadow)
+    }
+
+    /// The city's letters, found ones in gold and the rest in grey.
+    private func letterRuns(for city: City, only indices: [Int]? = nil) -> [(String, PixelColor)] {
+        let found = progress.letters(in: city)
+        return city.letters.enumerated().compactMap { index, letter in
+            if let indices, !indices.contains(index) { return nil }
+            return (String(letter), found.contains(index) ? Palette.yellow : PixelColor(0x9C9C9C))
+        }
+    }
+
+    private func runsLabel(_ runs: [(String, PixelColor)], at point: CGPoint, anchor: CGPoint) {
+        let node = SKSpriteNode(texture: PixelFont.texture(runs: runs))
+        node.anchorPoint = anchor
+        node.position = CGPoint(x: point.x.rounded(), y: point.y.rounded())
+        content.addChild(node)
+    }
+
+    // MARK: Pages
+
+    private func buildTitle() {
+        let safe = safeFrame
+        // The skater on the left; the name and buttons in a column on the right.
+        skaterPreview(at: CGPoint(x: safe.minX + safe.width * 0.25, y: StreetArt.baseline(forLane: 1)), scale: 2)
+        let buttonX = safe.minX + safe.width * 0.68
+        label("SKATE", at: CGPoint(x: buttonX, y: safe.maxY - 10), color: Palette.yellow, scale: 2)
+        label("TUESDAY GAMES", at: CGPoint(x: buttonX, y: safe.maxY - 25), color: Palette.white)
+        button("PLAY", at: CGPoint(x: buttonX, y: 42), minWidth: 64, color: PixelColor(0x00A844)) { [weak self] in
+            self?.show(.cities)
+        }
+        button("SKATER", at: CGPoint(x: buttonX, y: 26), minWidth: 64) { [weak self] in
+            self?.show(.builder)
+        }
+    }
+
+    private func buildCities() {
+        let safe = safeFrame
+        let city = City.all[cityIndex]
+        panel(CGRect(x: safe.minX, y: safe.minY + 2, width: safe.width, height: safe.height - 2))
+        label("CHOOSE A CITY", at: CGPoint(x: safe.midX, y: safe.maxY - 8))
+        label("\(cityIndex + 1)/\(City.all.count)", at: CGPoint(x: safe.maxX - 4, y: safe.maxY - 8),
+              anchor: CGPoint(x: 1, y: 0.5), color: PixelColor(0x9C9C9C))
+
+        let nameScale: CGFloat = PixelFont.width(of: city.name) * 2 > Int(safe.width - 50) ? 1 : 2
+        label(city.name, at: CGPoint(x: safe.midX, y: safe.midY + 10), color: city.isOpen ? Palette.white : PixelColor(0x9C9C9C),
+              scale: nameScale)
+        button("<", at: CGPoint(x: safe.minX + 12, y: safe.midY + 10)) { [weak self] in self?.changeCity(by: -1) }
+        button(">", at: CGPoint(x: safe.maxX - 12, y: safe.midY + 10)) { [weak self] in self?.changeCity(by: 1) }
+
+        if city.isOpen {
+            runsLabel(letterRuns(for: city), at: CGPoint(x: safe.midX, y: safe.midY - 6), anchor: CGPoint(x: 0.5, y: 0.5))
+            label("FREE", at: CGPoint(x: safe.midX, y: safe.midY - 17), color: Palette.green)
+            button("GO", at: CGPoint(x: safe.maxX - 26, y: safe.minY + 12), minWidth: 40, color: PixelColor(0x00A844)) { [weak self] in
+                self?.show(.spots(city))
+            }
+        } else {
+            label("COMING SOON", at: CGPoint(x: safe.midX, y: safe.midY - 8), color: Palette.yellow)
+        }
+        button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(.title) }
+    }
+
+    private func changeCity(by step: Int) {
+        cityIndex = (cityIndex + step + City.all.count) % City.all.count
+        Sounds.shared.play(.lane)
+        Haptics.tick()
+        layoutScene()
+    }
+
+    private func buildSpots(_ city: City) {
+        let safe = safeFrame
+        panel(CGRect(x: safe.minX, y: safe.minY + 2, width: safe.width, height: safe.height - 2))
+        label(city.name, at: CGPoint(x: safe.midX, y: safe.maxY - 8), color: Palette.yellow)
+        button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.maxY - 8)) { [weak self] in self?.show(.cities) }
+
+        let rowHeight: CGFloat = 12
+        let found = progress.letters(in: city)
+        for (number, level) in city.levels.enumerated() {
+            let y = safe.maxY - 24 - CGFloat(number) * rowHeight
+            let row = button("\(number + 1) \(level.name)", at: CGPoint(x: safe.minX + 4, y: y)) { [weak self] in
+                self?.router?.play(level, in: city)
+            }
+            // Left-align the row's button.
+            row.position.x = (safe.minX + 2 + row.calculateAccumulatedFrame().width / 2).rounded()
+
+            let indices = level.letters.map(\.index)
+            let runs: [(String, PixelColor)] = indices.map {
+                (String(city.letters[$0]), found.contains($0) ? Palette.yellow : PixelColor(0x9C9C9C))
+            }
+            if !runs.isEmpty {
+                runsLabel(runs, at: CGPoint(x: safe.maxX - 34, y: y), anchor: CGPoint(x: 1, y: 0.5))
+            }
+            let best = progress.bestScore(at: level)
+            if best > 0 {
+                label("\(best)", at: CGPoint(x: safe.maxX - 4, y: y), anchor: CGPoint(x: 1, y: 0.5), color: Palette.white)
+            }
+        }
+    }
+
+    private func buildBuilder() {
+        let safe = safeFrame
+        var outfit = progress.outfit
+        panel(CGRect(x: safe.minX + safe.width * 0.34, y: safe.minY + 2, width: safe.width * 0.66, height: safe.height - 2))
+        label("YOUR SKATER", at: CGPoint(x: safe.minX + safe.width * 0.67, y: safe.maxY - 8), color: Palette.yellow)
+        skaterPreview(at: CGPoint(x: safe.minX + safe.width * 0.17, y: StreetArt.baseline(forLane: 1)), scale: 2)
+
+        let labelX = safe.minX + safe.width * 0.37
+        let leftArrowX = safe.minX + safe.width * 0.66
+        let rightArrowX = safe.maxX - 8
+        let valueX = (leftArrowX + rightArrowX) / 2
+        let rowHeight: CGFloat = 12
+
+        struct Row {
+            var title: String
+            var value: String
+            var enabled: Bool
+            var change: (inout Outfit, Int) -> Void
+        }
+        let rows: [Row] = [
+            Row(title: "SKATER", value: outfit.kind.name, enabled: true) { outfit, step in
+                outfit.kind = Outfit.cycle(outfit.kind, in: SkaterKind.allCases, step: step)
+            },
+            Row(title: outfit.kind.isDog ? "BANDANA" : "SHIRT", value: outfit.shirt.name, enabled: true) { outfit, step in
+                outfit.shirt = Outfit.cycle(outfit.shirt, in: ColorChoice.allCases, step: step)
+            },
+            Row(title: "PANTS", value: outfit.kind.wearsPants ? outfit.pants.name : "-", enabled: outfit.kind.wearsPants) { outfit, step in
+                outfit.pants = Outfit.cycle(outfit.pants, in: ColorChoice.allCases, step: step)
+            },
+            Row(title: "HAT", value: outfit.hat?.name ?? "NONE", enabled: true) { outfit, step in
+                outfit.hat = Outfit.cycle(outfit.hat, in: Outfit.hatChoices, step: step)
+            },
+            Row(title: "BOARD", value: outfit.board.name, enabled: true) { outfit, step in
+                outfit.board = Outfit.cycle(outfit.board, in: ColorChoice.allCases, step: step)
+            },
+        ]
+        for (index, row) in rows.enumerated() {
+            let y = safe.maxY - 24 - CGFloat(index) * rowHeight
+            label(row.title, at: CGPoint(x: labelX, y: y), anchor: CGPoint(x: 0, y: 0.5),
+                  color: row.enabled ? Palette.white : PixelColor(0x7C7C7C))
+            label(row.value, at: CGPoint(x: valueX, y: y), color: row.enabled ? Palette.yellow : PixelColor(0x7C7C7C))
+            for (step, x) in [(-1, leftArrowX), (1, rightArrowX)] {
+                let arrow = button(step < 0 ? "<" : ">", at: CGPoint(x: x, y: y)) { [weak self] in
+                    row.change(&outfit, step)
+                    self?.progress.outfit = outfit
+                    Sounds.shared.play(.lane)
+                    Haptics.tick()
+                    self?.layoutScene()
+                }
+                arrow.isEnabled = row.enabled
+            }
+        }
+        button("DONE", at: CGPoint(x: safe.minX + safe.width * 0.17, y: safe.minY + 10), minWidth: 44,
+               color: PixelColor(0x00A844)) { [weak self] in
+            self?.show(.title)
+        }
+    }
+
+    // MARK: Touches
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        touchStart = touches.first.map { $0.location(in: self) }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first, let start = touchStart else { return }
+        touchStart = nil
+        let point = touch.location(in: self)
+        // Swipe sideways through the cities.
+        if page == .cities, abs(point.x - start.x) > 12, abs(point.x - start.x) > abs(point.y - start.y) {
+            changeCity(by: point.x < start.x ? 1 : -1)
+            return
+        }
+        if let button = buttons.first(where: { $0.hit(start) && $0.hit(point) }) {
+            Sounds.shared.play(.pop)
+            Haptics.pop(charged: false)
+            button.action()
+        }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        touchStart = nil
+    }
+}

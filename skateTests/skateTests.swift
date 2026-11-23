@@ -10,9 +10,11 @@ import Testing
 
 private let step: TimeInterval = 1.0 / 120
 
-/// An empty street, or one with just the features given.
-private func street(_ features: [Feature] = [], length: CGFloat = 5000) -> Level {
-    Level(name: "TEST", length: length, features: features, startX: 0, startLane: .middle)
+/// An empty street, or one with just the features (and letters) given.
+private func street(_ features: [Feature] = [], letters: [LetterPickup] = [], length: CGFloat = 5000,
+                    acceleration: CGFloat = 0, maxSpeed: CGFloat = Tuning.maxSpeed) -> Level {
+    Level(id: "test", name: "TEST", theme: .downtown, length: length, features: features, letters: letters,
+          startX: 0, startLane: .middle, acceleration: acceleration, maxSpeed: maxSpeed)
 }
 
 /// Steps the run until `done` is true, collecting what happened. Gives up after `limit` seconds.
@@ -234,27 +236,6 @@ struct RunTests {
         #expect(tap(&run) == [])
     }
 
-    @Test func feelStreetIsInOrderAndInsideTheRun() {
-        let level = Level.feelStreet
-        #expect(level.features.allSatisfy { $0.end < level.length })
-        #expect(zip(level.features, level.features.dropFirst()).allSatisfy { $0.x <= $1.x })
-    }
-
-    @Test func spritesAreRectangular() {
-        for sprite in [SkaterArt.roll, SkaterArt.crouch, SkaterArt.air, SkaterArt.grab, SkaterArt.bail] {
-            #expect(sprite.width == 22)
-            #expect(sprite.rows.allSatisfy { $0.count == 22 })
-        }
-        for sprite in [BoardArt.side, BoardArt.wheelsUp, BoardArt.underside, BoardArt.grip] {
-            #expect(sprite.width == 20)
-            #expect(sprite.rows.allSatisfy { $0.count == 20 })
-        }
-        for glyph in PixelFont.allGlyphs {
-            #expect(glyph.count == PixelFont.glyphHeight)
-            #expect(Set(glyph.map(\.count)).count == 1)
-        }
-    }
-
     @Test func swipingSidewaysOnTheGroundKickflips() {
         var run = Run(level: street())
         _ = run.handle(.press)
@@ -264,5 +245,150 @@ struct RunTests {
 
         var other = Run(level: street())
         #expect(other.handle(.swipe(.right)) == [.ollie(charged: false), .trickStarted(.heelflip)])
+    }
+
+    // MARK: Spots
+
+    @Test func pickingUpALetter() {
+        let high = LetterPickup(index: 0, letter: "P", lane: .middle, x: ollieTopX, height: 26)
+        let low = LetterPickup(index: 1, letter: "O", lane: .middle, x: 300, height: 4)
+        var run = Run(level: street(letters: [high, low]))
+        // Rolling under a high letter misses it...
+        var events = play(&run) { $0.x > ollieTopX + 20 }
+        #expect(!events.contains(.letter(index: 0, letter: "P")))
+        // ...rolling through a low one gets it, and its points.
+        events = play(&run) { $0.x > 320 }
+        #expect(events.contains(.letter(index: 1, letter: "O")))
+        #expect(run.score == Tuning.letterPoints)
+
+        // An ollie reaches the high one.
+        var jumper = Run(level: street(letters: [high]))
+        _ = tap(&jumper)
+        events = play(&jumper) { $0.state == .rolling }
+        #expect(events.contains(.letter(index: 0, letter: "P")))
+        #expect(jumper.lettersFound == [0])
+    }
+
+    @Test func rollingIntoAHoleIsAFallButOllieingClearsIt() {
+        var run = Run(level: street([.hole(.middle, at: 60)]))
+        var events = play(&run) { if case .bailed = $0.state { true } else { false } }
+        #expect(events.contains(.bail(.fell)))
+        // Doesn't get up until past the hole.
+        play(&run) { $0.state == .rolling }
+        #expect(run.x > 60 + 28 - 3)
+
+        var jumper = Run(level: street([.hole(.middle, at: 20, length: 28)]))
+        _ = tap(&jumper)
+        events = play(&jumper, for: 3) { $0.x > 200 }
+        #expect(!events.contains { if case .bail = $0 { true } else { false } })
+    }
+
+    @Test func movingThingsWaitUntilTheyAreOnScreen() {
+        var run = Run(level: street([.pedestrian(.back, at: 1000)]))
+        play(&run, for: 20) { $0.x > 1000 - Tuning.movingStartDistance - 20 }
+        #expect(run.x > 1000 - Tuning.movingStartDistance - 20)
+        #expect(run.position(ofFeature: 0) == 1000)
+        play(&run, for: 1) { _ in false }
+        #expect(run.position(ofFeature: 0) < 1000)
+    }
+
+    @Test func aPedestrianWalkingIntoYourLaneIsABail() {
+        var run = Run(level: street([.pedestrian(.middle, at: 400)]))
+        let events = play(&run, for: 8) { if case .bailed = $0.state { true } else { false } }
+        #expect(events.contains(.bail(.crashed)))
+        // They walked toward you, so you met them before x = 400.
+        #expect(run.x < 400)
+    }
+
+    @Test func curbsAndTracksDontStopYouButCanBeGround() {
+        var run = Run(level: street([.curb(.middle, at: 30, length: 100), .tracks(.front, at: 200, length: 100)]))
+        let events = play(&run, for: 3) { $0.x > 150 }
+        #expect(!events.contains { if case .bail = $0 { true } else { false } })
+
+        var grinder = Run(level: street([.curb(.middle, at: ollieTopX, length: 200)]))
+        _ = tap(&grinder)
+        let grind = play(&grinder) { $0.isGrinding }
+        #expect(grind.contains(.grindStarted(.fiftyFifty)))
+    }
+
+    @Test func downhillKeepsSpeedingUpToItsLimit() {
+        var run = Run(level: street(acceleration: 10, maxSpeed: 150))
+        play(&run, for: 3) { _ in false }
+        #expect(run.speed > Tuning.startSpeed + 25)
+        play(&run, for: 10) { _ in false }
+        #expect(run.speed == 150)
+    }
+
+    @Test func portlandHasEveryLetterOnceAndTidyLevels() {
+        let city = City.portland
+        let indices = city.levels.flatMap { $0.letters.map(\.index) }.sorted()
+        #expect(indices == Array(0..<city.letters.count))
+        for level in city.levels {
+            #expect(level.features.allSatisfy { $0.end < level.length }, "\(level.name)")
+            #expect(zip(level.features, level.features.dropFirst()).allSatisfy { $0.x <= $1.x }, "\(level.name)")
+            for pickup in level.letters {
+                #expect(city.letters[pickup.index] == pickup.letter, "\(level.name)")
+                #expect(pickup.x < level.length)
+            }
+        }
+        #expect(Set(city.levels.map(\.id)).count == city.levels.count)
+    }
+
+    @Test func onlyPortlandIsOpen() {
+        #expect(City.all.count == 9)
+        #expect(City.all.filter(\.isOpen) == [City.portland])
+        #expect(City.portland.letters == Array("PORTLAND"))
+        #expect(City.all[1].letters == Array("SANFRANCISCO"))
+    }
+}
+
+@MainActor
+struct CharacterTests {
+    @Test func outfitsCycleAndWrap() {
+        #expect(Outfit.cycle(SkaterKind.angie, in: SkaterKind.allCases, step: 1) == .terry)
+        #expect(Outfit.cycle(SkaterKind.terry, in: SkaterKind.allCases, step: -1) == .angie)
+        #expect(Outfit.cycle(ColorChoice?.some(.brown), in: Outfit.hatChoices, step: 1) == nil)
+        #expect(Outfit.cycle(ColorChoice?.none, in: Outfit.hatChoices, step: 1) == .black)
+    }
+
+    @Test func progressSavesOutfitLettersAndBests() throws {
+        let defaults = try #require(UserDefaults(suiteName: "skateTests.\(UUID().uuidString)"))
+        let progress = Progress(defaults: defaults)
+        #expect(progress.outfit == .standard)
+        var outfit = Outfit.standard
+        outfit.kind = .angie
+        outfit.hat = nil
+        progress.outfit = outfit
+        #expect(Progress(defaults: defaults).outfit == outfit)
+
+        #expect(progress.collect(letter: 3, in: .portland))
+        #expect(!progress.collect(letter: 3, in: .portland))
+        #expect(progress.letters(in: .portland) == [3])
+
+        #expect(progress.record(score: 500, at: .downtown))
+        #expect(!progress.record(score: 400, at: .downtown))
+        #expect(progress.bestScore(at: .downtown) == 500)
+    }
+
+    @Test func artIsRectangular() {
+        for template in CharacterArt.allTemplates {
+            #expect(Set(template.map(\.count)) == [18])
+        }
+        for kind in SkaterKind.allCases {
+            for hat in [ColorChoice.yellow, nil] {
+                let poses = CharacterArt.poses(for: Outfit(kind: kind, hat: hat))
+                for sprite in [poses.roll, poses.crouch, poses.air, poses.grab, poses.bail] {
+                    #expect(sprite.width == 18)
+                }
+            }
+        }
+        let board = CharacterArt.board(for: .standard)
+        for sprite in [board.side, board.wheelsUp, board.underside, board.grip] {
+            #expect(sprite.rows.allSatisfy { $0.count == 20 })
+        }
+        for glyph in PixelFont.allGlyphs {
+            #expect(glyph.count == PixelFont.glyphHeight)
+            #expect(Set(glyph.map(\.count)).count == 1)
+        }
     }
 }

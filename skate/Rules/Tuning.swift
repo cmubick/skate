@@ -61,6 +61,19 @@ nonisolated enum Tuning {
     /// A perfect landing adds this share of the combo on top.
     static let perfectBonus = 0.2
 
+    /// Things this low (curbs, train tracks) don't stop you rolling; you can only grind them.
+    static let lowFeatureHeight: CGFloat = 5
+    /// Moving things start moving when you're this close, just before they come on screen.
+    static let movingStartDistance: CGFloat = 200
+
+    // MARK: Letters
+
+    /// How close along the street you have to be to pick up a letter.
+    static let letterReachX: CGFloat = 8
+    /// How far above your board you can reach a letter. Higher letters need an ollie.
+    static let letterReachUp: CGFloat = 16
+    static let letterPoints = 100
+
     // MARK: Bails
 
     static let bailTime: TimeInterval = 0.9

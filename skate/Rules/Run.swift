@@ -38,6 +38,8 @@ nonisolated enum BailReason: Equatable, Sendable {
     case crashed
     /// Landed on top of something that can't be ground.
     case landedOnBlock
+    /// Rolled or landed in a hole.
+    case fell
 }
 
 nonisolated enum RunEvent: Equatable, Sendable {
@@ -50,6 +52,8 @@ nonisolated enum RunEvent: Equatable, Sendable {
     case landed(points: Int, perfect: Bool)
     case bail(BailReason)
     case laneSwitch(Lane)
+    /// Picked up one of the city's letters. `index` is its place in the city's name.
+    case letter(index: Int, letter: Character)
     case finished(score: Int)
 }
 
@@ -85,11 +89,24 @@ nonisolated struct Run: Sendable {
     private(set) var time: TimeInterval = 0
     private(set) var isFinished = false
 
+    /// Letters picked up on this run, by their place in the city's name.
+    private(set) var lettersFound: Set<Int> = []
+    /// When each moving feature came on screen and started moving.
+    private var startedMoving: [TimeInterval?]
+
     init(level: Level) {
         self.level = level
         x = level.startX
         lane = level.startLane
         drawnLane = CGFloat(level.startLane.rawValue)
+        startedMoving = Array(repeating: nil, count: level.features.count)
+    }
+
+    /// Where a feature starts right now. Moving things stay put until they come on screen.
+    func position(ofFeature index: Int) -> CGFloat {
+        let feature = level.features[index]
+        guard let start = startedMoving[index] else { return feature.x }
+        return feature.x + feature.velocity * CGFloat(time - start)
     }
 
     /// True while the finger is down on the ground, winding up an ollie.
@@ -190,11 +207,23 @@ nonisolated struct Run: Sendable {
         let glide = seconds / CGFloat(Tuning.laneSwitchTime)
         drawnLane += max(-glide, min(glide, target - drawnLane))
 
+        // Moving things start moving once they're about to come on screen.
+        for index in level.features.indices where startedMoving[index] == nil && level.features[index].isMoving {
+            if x + Tuning.movingStartDistance >= level.features[index].x { startedMoving[index] = time }
+        }
+
+        // Downhill spots keep speeding you up.
+        if level.acceleration > 0, !isBailed {
+            speed = min(level.maxSpeed, speed + level.acceleration * seconds)
+        }
+
         switch state {
         case .rolling:
             x += speed * seconds
             if blockingFeature(at: height) != nil {
                 bail(.crashed, events: &events)
+            } else if isOverHole {
+                bail(.fell, events: &events)
             }
 
         case .airborne:
@@ -220,6 +249,10 @@ nonisolated struct Run: Sendable {
                 }
             } else if blockingFeature(at: height) != nil {
                 bail(.crashed, events: &events)
+            } else if height <= 0, isOverHole {
+                height = 0
+                verticalSpeed = 0
+                bail(.fell, events: &events)
             } else if height <= 0 {
                 land(events: &events)
             }
@@ -241,8 +274,8 @@ nonisolated struct Run: Sendable {
                 height = max(0, height + verticalSpeed * seconds)
             }
             let left = remaining - dt
-            // Don't get up in the middle of a cone.
-            if left <= 0, height == 0, blockingFeature(at: 0) == nil {
+            // Don't get up in the middle of a cone, or in a hole.
+            if left <= 0, height == 0, blockingFeature(at: 0) == nil, !isOverHole {
                 state = .rolling
                 speed = Tuning.speedAfterBail
                 verticalSpeed = 0
@@ -250,6 +283,8 @@ nonisolated struct Run: Sendable {
                 state = .bailed(remaining: left)
             }
         }
+
+        collectLetters(events: &events)
 
         if x >= level.length {
             if state == .rolling { bank(perfect: false) }
@@ -338,7 +373,7 @@ nonisolated struct Run: Sendable {
         let perfect = sinceTrickEnded.map { $0 <= Tuning.perfectWindow } ?? false
         let points = bank(perfect: perfect)
         state = .rolling
-        speed = min(Tuning.maxSpeed, speed + (perfect ? Tuning.speedPerPerfectLanding : Tuning.speedPerLanding))
+        speed = min(level.maxSpeed, speed + (perfect ? Tuning.speedPerPerfectLanding : Tuning.speedPerLanding))
         events.append(.landed(points: points, perfect: perfect))
     }
 
@@ -363,19 +398,50 @@ nonisolated struct Run: Sendable {
         events.append(.bail(reason))
     }
 
-    // MARK: Collisions
-
-    private func overlaps(_ feature: Feature) -> Bool {
-        feature.lane == lane
-            && x + Tuning.skaterHalfWidth >= feature.x
-            && x - Tuning.skaterHalfWidth <= feature.end
+    private var isBailed: Bool {
+        if case .bailed = state { return true }
+        return false
     }
 
-    /// Something in the way at this height, if there is.
+    // MARK: Letters
+
+    private mutating func collectLetters(events: inout [RunEvent]) {
+        for pickup in level.letters where !lettersFound.contains(pickup.index) {
+            guard pickup.lane == lane, !isBailed,
+                  abs(pickup.x - x) <= Tuning.letterReachX,
+                  pickup.height >= height - 4, pickup.height <= height + Tuning.letterReachUp else { continue }
+            lettersFound.insert(pickup.index)
+            score += Tuning.letterPoints
+            events.append(.letter(index: pickup.index, letter: pickup.letter))
+        }
+    }
+
+    // MARK: Collisions
+
+    private func overlaps(_ index: Int) -> Bool {
+        let feature = level.features[index]
+        let start = position(ofFeature: index)
+        return feature.lane == lane
+            && x + Tuning.skaterHalfWidth >= start
+            && x - Tuning.skaterHalfWidth <= start + feature.length
+    }
+
+    /// Something in the way at this height, if there is. Holes and low curbs never are.
     private func blockingFeature(at height: CGFloat) -> Int? {
         level.features.indices.first { index in
             let feature = level.features[index]
-            return overlaps(feature) && height < feature.height - Tuning.grindSnapBelow
+            guard feature.kind != .hole, !feature.isLow else { return false }
+            return overlaps(index) && height < feature.height - Tuning.grindSnapBelow
+        }
+    }
+
+    /// True when the skater's wheels are over a hole in their lane.
+    private var isOverHole: Bool {
+        level.features.indices.contains { index in
+            let feature = level.features[index]
+            let start = position(ofFeature: index)
+            return feature.kind == .hole && feature.lane == lane
+                && x >= start + 3 && x <= start + feature.length - 3
         }
     }
 
@@ -383,9 +449,10 @@ nonisolated struct Run: Sendable {
     private func landingFeature(previousHeight: CGFloat) -> Int? {
         level.features.indices.first { index in
             let feature = level.features[index]
+            guard feature.kind != .hole else { return false }
             // Rails pull you in from a little above. Cones only count if you really touch them.
             let snap = feature.isGrindable ? Tuning.grindSnap : 0
-            return overlaps(feature)
+            return overlaps(index)
                 && previousHeight >= feature.height - Tuning.grindSnapBelow
                 && height <= feature.height + snap
         }

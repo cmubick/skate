@@ -2,8 +2,9 @@
 //  Level.swift
 //  skate
 //
-//  A run is one hand-built street: things to ollie over and things to grind,
-//  each in one of three lanes, and a finish line.
+//  A run is one hand-built spot: things to ollie over, things to grind and
+//  holes to clear, each in one of three lanes, the city's letters to find, and
+//  a finish line.
 //
 
 import CoreGraphics
@@ -20,78 +21,185 @@ nonisolated enum Lane: Int, CaseIterable, Comparable, Sendable {
     static func < (a: Lane, b: Lane) -> Bool { a.rawValue < b.rawValue }
 }
 
+/// How a feature looks. Each spot has its own.
+nonisolated enum FeatureStyle: Equatable, Sendable {
+    // Things to grind.
+    case rail, handrail, ledge, bench, curb, fountain, tracks, funbox, barrier
+    // Things in the way.
+    case cone, planter, pedestrian, runner, biker, skater, dog, cart, brokenCar, car, train, penguin, goat
+    // Holes in the ground.
+    case hole, waterHole
+}
+
 nonisolated struct Feature: Equatable, Sendable {
     enum Kind: Equatable, Sendable {
         /// A thin rail on posts. Grindable.
         case rail
-        /// A solid ledge or bench. Grindable.
+        /// A solid ledge, bench or curb. Grindable.
         case ledge
-        /// A cone, planter or anything else to ollie over. Landing on it is a bail.
+        /// Anything to ollie over or go around. Landing on it is a bail.
         case block
+        /// A gap in the ground. Rolling into it is a bail; ollie over it.
+        case hole
     }
 
     var kind: Kind
+    var style: FeatureStyle
     var lane: Lane
-    /// Where it starts along the street.
+    /// Where it starts along the street. Moving things start here once they come on screen.
     var x: CGFloat
     var length: CGFloat
     var height: CGFloat
+    /// Pixels per second, once it's on screen. Negative comes toward you; positive goes
+    /// the same way you do, only slower.
+    var velocity: CGFloat = 0
 
     var end: CGFloat { x + length }
-    var isGrindable: Bool { kind != .block }
+    var isGrindable: Bool { kind == .rail || kind == .ledge }
+    var isMoving: Bool { velocity != 0 }
+    /// Low things, like curbs and train tracks, don't stop you rolling; you can only grind them.
+    var isLow: Bool { height <= Tuning.lowFeatureHeight }
+
+    // MARK: Things to grind
 
     static func rail(_ lane: Lane, at x: CGFloat, length: CGFloat, height: CGFloat = 14) -> Feature {
-        Feature(kind: .rail, lane: lane, x: x, length: length, height: height)
+        Feature(kind: .rail, style: .rail, lane: lane, x: x, length: length, height: height)
+    }
+
+    static func handrail(_ lane: Lane, at x: CGFloat, length: CGFloat) -> Feature {
+        Feature(kind: .rail, style: .handrail, lane: lane, x: x, length: length, height: 14)
     }
 
     static func ledge(_ lane: Lane, at x: CGFloat, length: CGFloat, height: CGFloat = 10) -> Feature {
-        Feature(kind: .ledge, lane: lane, x: x, length: length, height: height)
+        Feature(kind: .ledge, style: .ledge, lane: lane, x: x, length: length, height: height)
     }
 
+    static func bench(_ lane: Lane, at x: CGFloat, length: CGFloat = 36) -> Feature {
+        Feature(kind: .ledge, style: .bench, lane: lane, x: x, length: length, height: 9)
+    }
+
+    static func curb(_ lane: Lane, at x: CGFloat, length: CGFloat) -> Feature {
+        Feature(kind: .ledge, style: .curb, lane: lane, x: x, length: length, height: 5)
+    }
+
+    static func fountain(_ lane: Lane, at x: CGFloat, length: CGFloat = 72) -> Feature {
+        Feature(kind: .ledge, style: .fountain, lane: lane, x: x, length: length, height: 12)
+    }
+
+    static func tracks(_ lane: Lane, at x: CGFloat, length: CGFloat) -> Feature {
+        Feature(kind: .rail, style: .tracks, lane: lane, x: x, length: length, height: 3)
+    }
+
+    static func funbox(_ lane: Lane, at x: CGFloat, length: CGFloat = 64) -> Feature {
+        Feature(kind: .ledge, style: .funbox, lane: lane, x: x, length: length, height: 11)
+    }
+
+    static func barrier(_ lane: Lane, at x: CGFloat, length: CGFloat = 40) -> Feature {
+        Feature(kind: .ledge, style: .barrier, lane: lane, x: x, length: length, height: 11)
+    }
+
+    // MARK: Things in the way
+
     static func cone(_ lane: Lane, at x: CGFloat) -> Feature {
-        Feature(kind: .block, lane: lane, x: x, length: 9, height: 12)
+        Feature(kind: .block, style: .cone, lane: lane, x: x, length: 9, height: 12)
     }
 
     static func planter(_ lane: Lane, at x: CGFloat, length: CGFloat = 24, height: CGFloat = 16) -> Feature {
-        Feature(kind: .block, lane: lane, x: x, length: length, height: height)
+        Feature(kind: .block, style: .planter, lane: lane, x: x, length: length, height: height)
+    }
+
+    /// Someone walking toward you. Too tall to ollie: go around.
+    static func pedestrian(_ lane: Lane, at x: CGFloat, speed: CGFloat = 14) -> Feature {
+        Feature(kind: .block, style: .pedestrian, lane: lane, x: x, length: 8, height: 23, velocity: -speed)
+    }
+
+    /// A jogger going your way, slower than you.
+    static func runner(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .runner, lane: lane, x: x, length: 10, height: 23, velocity: 30)
+    }
+
+    /// A cyclist going your way. Low enough to ollie.
+    static func biker(_ lane: Lane, at x: CGFloat, speed: CGFloat = 50) -> Feature {
+        Feature(kind: .block, style: .biker, lane: lane, x: x, length: 18, height: 16, velocity: speed)
+    }
+
+    /// Another skater, cruising slower than you.
+    static func skater(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .skater, lane: lane, x: x, length: 12, height: 22, velocity: 40)
+    }
+
+    /// Angie, out for a walk.
+    static func dog(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .dog, lane: lane, x: x, length: 15, height: 11, velocity: -10)
+    }
+
+    static func cart(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .cart, lane: lane, x: x, length: 15, height: 13)
+    }
+
+    static func brokenCar(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .brokenCar, lane: lane, x: x, length: 40, height: 17)
+    }
+
+    /// A car coming up the street toward you.
+    static func car(_ lane: Lane, at x: CGFloat, speed: CGFloat = 60) -> Feature {
+        Feature(kind: .block, style: .car, lane: lane, x: x, length: 40, height: 17, velocity: -speed)
+    }
+
+    /// A light rail train. Far too big to ollie: get out of its lane.
+    static func train(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .train, lane: lane, x: x, length: 150, height: 40, velocity: -80)
+    }
+
+    static func penguin(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .penguin, lane: lane, x: x, length: 8, height: 11, velocity: -8)
+    }
+
+    static func goat(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .goat, lane: lane, x: x, length: 16, height: 13, velocity: -12)
+    }
+
+    // MARK: Holes
+
+    static func hole(_ lane: Lane, at x: CGFloat, length: CGFloat = 28) -> Feature {
+        Feature(kind: .hole, style: .hole, lane: lane, x: x, length: length, height: 0)
+    }
+
+    /// A gap in the esplanade, straight down to the river.
+    static func waterHole(_ lane: Lane, at x: CGFloat, length: CGFloat = 32) -> Feature {
+        Feature(kind: .hole, style: .waterHole, lane: lane, x: x, length: length, height: 0)
     }
 }
 
+/// One of the city's letters, floating somewhere along a run.
+nonisolated struct LetterPickup: Equatable, Sendable {
+    /// Its place in the city's name (P is 0 in Portland).
+    var index: Int
+    var letter: Character
+    var lane: Lane
+    var x: CGFloat
+    /// How high its bottom is above the lane. Up to 16 can be reached rolling; higher needs an ollie.
+    var height: CGFloat
+}
+
+/// The look of a spot: its sky, backdrops and ground.
+nonisolated enum Theme: Equatable, Sendable {
+    case downtown, skidmore, burnside, northPortland, waterfront, zooBomb
+}
+
 nonisolated struct Level: Equatable, Sendable {
+    var id: String
     var name: String
+    var theme: Theme
     /// Where the finish line is.
     var length: CGFloat
     var features: [Feature]
+    var letters: [LetterPickup] = []
     var startX: CGFloat = 40
     var startLane: Lane = .middle
-
-    /// The grey-box street for the feel prototype (milestone 1): a bit of everything,
-    /// about 30 seconds long.
-    static let feelStreet = Level(name: "GREY BOX STREET", length: 2960, features: [
-        // Warm up: single cones to ollie over.
-        .cone(.middle, at: 240),
-        .cone(.front, at: 352),
-        // First rail, in the back lane where rails live.
-        .rail(.back, at: 448, length: 80),
-        .ledge(.middle, at: 608, length: 56),
-        .cone(.front, at: 720), .cone(.front, at: 768),
-        .rail(.middle, at: 864, length: 104),
-        .cone(.back, at: 896),
-        .ledge(.back, at: 1056, length: 80),
-        .cone(.front, at: 1072),
-        // A pair of cones close together: needs a charged ollie, or a lane switch.
-        .cone(.middle, at: 1216), .cone(.middle, at: 1245),
-        .rail(.front, at: 1344, length: 128),
-        // Two short rails with a gap: transfer from one to the other.
-        .rail(.back, at: 1536, length: 56), .rail(.back, at: 1624, length: 56),
-        .planter(.middle, at: 1760),
-        .ledge(.middle, at: 1888, length: 104),
-        .cone(.back, at: 1904), .cone(.front, at: 1928),
-        .rail(.back, at: 2096, length: 160),
-        .cone(.front, at: 2272), .cone(.front, at: 2320), .cone(.front, at: 2368),
-        .rail(.middle, at: 2448, length: 80),
-        .ledge(.middle, at: 2576, length: 80),
-        // Cones across every lane: no way round, ollie it.
-        .cone(.back, at: 2752), .cone(.middle, at: 2768), .cone(.front, at: 2784),
-    ])
+    /// Speed gained every second, for downhill runs.
+    var acceleration: CGFloat = 0
+    var maxSpeed: CGFloat = Tuning.maxSpeed
+    /// Show the how-to-play hints along the way.
+    var showsHints = false
 }

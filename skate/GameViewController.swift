@@ -9,10 +9,11 @@
 import UIKit
 import SpriteKit
 
-class GameViewController: UIViewController {
+class GameViewController: UIViewController, SceneRouter {
 
     private let skView = SKView()
-    private var gameScene: GameScene?
+    private var currentScene: PixelScene?
+    private var layout: PixelLayout?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -30,23 +31,53 @@ class GameViewController: UIViewController {
         super.viewDidLayoutSubviews()
         let screenScale = view.window?.screen.scale ?? view.traitCollection.displayScale
         let layout = PixelLayout(viewSize: view.bounds.size, screenScale: screenScale)
+        self.layout = layout
         skView.frame = layout.frame
-
-        if let scene = gameScene {
+        if let scene = currentScene {
             if scene.size != layout.gameSize { scene.size = layout.gameSize }
+            configure(scene)
         } else {
-            let scene = GameScene(size: layout.gameSize)
-            scene.scaleMode = .fill
-            skView.presentScene(scene)
-            gameScene = scene
+            showMenu(.title)
         }
-        gameScene?.pointsPerPixel = layout.pointsPerPixel
-        gameScene?.safeInsets = view.safeAreaInsets
     }
 
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
-        gameScene?.safeInsets = view.safeAreaInsets
+        currentScene?.safeInsets = view.safeAreaInsets
+    }
+
+    private func configure(_ scene: PixelScene) {
+        guard let layout else { return }
+        scene.router = self
+        scene.pointsPerPixel = layout.pointsPerPixel
+        scene.safeInsets = view.safeAreaInsets
+    }
+
+    private func present(_ scene: PixelScene) {
+        scene.scaleMode = .fill
+        configure(scene)
+        if currentScene == nil {
+            skView.presentScene(scene)
+        } else {
+            skView.presentScene(scene, transition: .fade(with: .black, duration: 0.2))
+        }
+        currentScene = scene
+    }
+
+    // MARK: SceneRouter
+
+    func showMenu(_ page: MenuScene.Page) {
+        guard let layout else { return }
+        if let menu = currentScene as? MenuScene {
+            menu.show(page)
+        } else {
+            present(MenuScene(size: layout.gameSize, page: page))
+        }
+    }
+
+    func play(_ level: Level, in city: City) {
+        guard let layout else { return }
+        present(GameScene(size: layout.gameSize, level: level, city: city, outfit: Progress.shared.outfit))
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }

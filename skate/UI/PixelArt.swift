@@ -24,6 +24,19 @@ struct PixelColor: Hashable {
 
     static let clear = PixelColor(0, alpha: 0)
 
+    init(_ choice: ColorChoice) {
+        self.init(choice.hex)
+    }
+
+    /// The same color in shadow.
+    func darker(_ amount: Double = 0.65) -> PixelColor {
+        var color = self
+        color.r = UInt8(Double(r) * amount)
+        color.g = UInt8(Double(g) * amount)
+        color.b = UInt8(Double(b) * amount)
+        return color
+    }
+
     var skColor: SKColor {
         SKColor(red: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255, alpha: CGFloat(a) / 255)
     }
@@ -56,6 +69,11 @@ enum Palette {
     static let brown = PixelColor(0x7C3C00)
     static let hair = PixelColor(0x503000)
     static let skin = PixelColor(0xE4A06C)
+    /// A dark brown line around faces, so heads read as heads.
+    static let outline = PixelColor(0x6C2C10)
+    static let shirt = PixelColor(0x1C1C1C)
+    static let khaki = PixelColor(0xC8A870)
+    static let khakiDark = PixelColor(0x907444)
     static let steel = PixelColor(0xA4E4FC)
 
     /// A see-through dark for shadows on the ground.
@@ -91,6 +109,16 @@ struct PixelCanvas {
     mutating func fill(x: Int, y: Int, width w: Int, height h: Int, _ color: PixelColor) {
         for row in y..<(y + max(0, h)) {
             for column in x..<(x + max(0, w)) { set(column, row, color) }
+        }
+    }
+
+    /// Makes pixels see-through again.
+    mutating func erase(x: Int, y: Int, width w: Int, height h: Int) {
+        for row in max(0, y)..<min(height, y + max(0, h)) {
+            for column in max(0, x)..<min(width, x + max(0, w)) {
+                let index = ((height - 1 - row) * width + column) * 4
+                pixels[index] = 0; pixels[index + 1] = 0; pixels[index + 2] = 0; pixels[index + 3] = 0
+            }
         }
     }
 
@@ -139,299 +167,6 @@ struct PixelSprite {
     func texture(mirrored: Bool = false) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         canvas.draw(self, x: 0, y: 0, mirrored: mirrored)
-        return canvas.texture()
-    }
-}
-
-// MARK: - The skater
-
-/// A short, chunky skater with a big head and a yellow cap on backwards.
-/// Everything faces right; the cap's brim sticks out the back.
-enum SkaterArt {
-    static let colors: [Character: PixelColor] = [
-        "c": Palette.yellow, "k": Palette.gold, "h": Palette.hair, "s": Palette.skin, "e": Palette.black,
-        "r": Palette.green, "b": Palette.denim, "w": Palette.white, "g": Palette.grey,
-    ]
-
-    /// The head and cap, shared by every pose.
-    private static let head = [
-        "........cccccc........",
-        "......cccccccccc......",
-        ".....cccccccccccc.....",
-        "..kkkkcccccccccccc....",
-        ".....hhhsssssssss.....",
-        ".....hhsssssssess.....",
-        ".....hhssssssssss.....",
-        "......hsssssssss......",
-        ".......ssssssss.......",
-        "........ssssss........",
-    ]
-
-    static let roll = PixelSprite(head + [
-        ".......rrrrrrrr.......",
-        ".....rrrrrrrrrrrr.....",
-        "....srrrrrrrrrrrrs....",
-        "...ss.rrrrrrrrrr.ss...",
-        "......rrrrrrrrrr......",
-        "......bbbbbbbbbb......",
-        "......bbbbbbbbbbb.....",
-        ".....bbbbb...bbbbb....",
-        "....bbbbb.....bbbb....",
-        "....bbbb.......bbbb...",
-        "...wwwwww.....wwwwww..",
-        "..ggggggg....ggggggg..",
-    ], colors: colors)
-
-    /// Knees bent: winding up an ollie, or riding a rail.
-    static let crouch = PixelSprite(head + [
-        ".......rrrrrrrr.......",
-        ".....rrrrrrrrrrrr.....",
-        "....srrrrrrrrrrrrss...",
-        "...ss.rrrrrrrrrr..ss..",
-        "......bbbbbbbbbb......",
-        ".....bbbbbbbbbbbb.....",
-        "....bbbbb....bbbbb....",
-        "...wwwwww....wwwwww...",
-        "..ggggggg....ggggggg..",
-    ], colors: colors)
-
-    /// Knees up, arms out.
-    static let air = PixelSprite(head + [
-        ".s.....rrrrrrrr.....s.",
-        ".ss..rrrrrrrrrrrr..ss.",
-        "..ssrrrrrrrrrrrrrrss..",
-        "......rrrrrrrrrr......",
-        "......bbbbbbbbbb......",
-        ".....bbbbbbbbbbbb.....",
-        "....bbbbbbbbbbbbbb....",
-        "....bbbb......bbbb....",
-        "...wwwwww....wwwwww...",
-        "..ggggggg....ggggggg..",
-    ], colors: colors)
-
-    /// One hand down on the board.
-    static let grab = PixelSprite(head + [
-        ".s.....rrrrrrrr.......",
-        ".ss..rrrrrrrrrrrr.....",
-        "..ssrrrrrrrrrrrrr.....",
-        "......rrrrrrrrrrs.....",
-        "......bbbbbbbbbbss....",
-        ".....bbbbbbbbbbbbs....",
-        "....bbbbbbbbbbbbbs....",
-        "....bbbb......bbbs....",
-        "...wwwwww....wwwws....",
-        "..ggggggg....gggggss..",
-    ], colors: colors)
-
-    /// Flat on the ground.
-    static let bail = PixelSprite([
-        "...............kcccc..",
-        "..............cccccccc",
-        "wwbbbbbbrrrrrrhhssssss",
-        "wwbbbbbbrrrrrrhsssesss",
-        "ggbb..bbrrrrrrsssssss.",
-        "........ss..ss.ssss...",
-    ], colors: colors)
-}
-
-enum BoardArt {
-    static let colors: [Character: PixelColor] = [
-        "d": Palette.brown, "m": Palette.grey, "w": Palette.white,
-        "o": Palette.orange, "y": Palette.yellow, "k": Palette.darkGrey,
-    ]
-
-    /// Side on, wheels down: how it looks rolling.
-    static let side = PixelSprite([
-        "dd................dd",
-        ".dddddddddddddddddd.",
-        "...mmm........mmm...",
-        "...ww..........ww...",
-    ], colors: colors)
-
-    static let wheelsUp = PixelSprite([
-        "...ww..........ww...",
-        "...mmm........mmm...",
-        ".dddddddddddddddddd.",
-        "dd................dd",
-    ], colors: colors)
-
-    /// Flipped toward you, showing the graphic underneath.
-    static let underside = PixelSprite([
-        ".oooooooooooooooooo.",
-        "oyyyoooooyyoooooyyyo",
-        "oyyyooooyyyyooooyyyo",
-        "oyyyoooooyyoooooyyyo",
-        ".oooooooooooooooooo.",
-    ], colors: colors)
-
-    /// Flipped away from you, showing the grip tape.
-    static let grip = PixelSprite([
-        ".kkkkkkkkkkkkkkkkkk.",
-        "kkkkkkkkkkkkkkkkkkkk",
-        "kkkkkkkkkkkkkkkkkkkk",
-        "kkkkkkkkkkkkkkkkkkkk",
-        ".kkkkkkkkkkkkkkkkkk.",
-    ], colors: colors)
-}
-
-// MARK: - Street things
-
-enum FeatureArt {
-    static func texture(for feature: Feature) -> SKTexture {
-        let width = Int(feature.length)
-        let height = Int(feature.height)
-        var canvas = PixelCanvas(width: width, height: height)
-        switch feature.kind {
-        case .rail:
-            // A round bar on posts.
-            var postX = 2
-            while postX < width - 2 {
-                canvas.fill(x: postX, y: 0, width: 2, height: height - 2, Palette.grey)
-                postX += 30
-            }
-            canvas.fill(x: width - 4, y: 0, width: 2, height: height - 2, Palette.grey)
-            canvas.fill(x: 0, y: height - 2, width: width, height: 1, Palette.steel)
-            canvas.fill(x: 0, y: height - 1, width: width, height: 1, Palette.white)
-        case .ledge:
-            // A concrete bench: a light top edge, a face, and a dark foot.
-            canvas.fill(x: 0, y: 0, width: width, height: height, Palette.grey)
-            canvas.fill(x: 0, y: height - 2, width: width, height: 2, Palette.lightGrey)
-            canvas.fill(x: 0, y: height - 1, width: width, height: 1, Palette.white)
-            canvas.fill(x: 0, y: 0, width: width, height: 1, Palette.darkGrey)
-            canvas.fill(x: 0, y: 0, width: 1, height: height, Palette.darkGrey)
-            canvas.fill(x: width - 1, y: 0, width: 1, height: height, Palette.darkGrey)
-        case .block:
-            if width < 16 {
-                drawCone(&canvas)
-            } else {
-                drawPlanter(&canvas)
-            }
-        }
-        return canvas.texture()
-    }
-
-    private static func drawCone(_ canvas: inout PixelCanvas) {
-        let w = canvas.width, h = canvas.height
-        canvas.fill(x: 0, y: 0, width: w, height: 1, Palette.darkGrey)
-        for y in 1..<h {
-            let half = max(0, Int(Double(w) / 2 * (1 - Double(y - 1) / Double(h))))
-            let mid = w / 2
-            let color = (y == h / 2 || y == h / 2 + 1) ? Palette.white : Palette.orange
-            canvas.fill(x: mid - half, y: y, width: half * 2 + 1, height: 1, color)
-        }
-    }
-
-    private static func drawPlanter(_ canvas: inout PixelCanvas) {
-        let w = canvas.width, h = canvas.height
-        let boxHeight = h * 2 / 3
-        canvas.fill(x: 0, y: 0, width: w, height: boxHeight, Palette.brick)
-        canvas.fill(x: 0, y: boxHeight - 1, width: w, height: 1, Palette.lightGrey)
-        canvas.fill(x: 0, y: 0, width: w, height: 1, Palette.brickDark)
-        var generator = SeededGenerator(seed: UInt64(w * 31 + h))
-        for x in 0..<w {
-            let top = boxHeight + Int.random(in: 1...(h - boxHeight), using: &generator)
-            canvas.fill(x: x, y: boxHeight, width: 1, height: top - boxHeight, Palette.green)
-            canvas.set(x, top - 1, x % 3 == 0 ? Palette.darkGreen : Palette.green)
-        }
-    }
-
-    static func finishLine(height: Int) -> SKTexture {
-        var canvas = PixelCanvas(width: 6, height: height)
-        for y in 0..<height {
-            for x in 0..<6 {
-                canvas.set(x, y, ((x / 3) + (y / 3)) % 2 == 0 ? Palette.white : Palette.black)
-            }
-        }
-        return canvas.texture()
-    }
-}
-
-// MARK: - Background
-
-enum StreetArt {
-    /// Feet stand on these lines, in game pixels from the bottom of the screen.
-    static func baseline(forLane lane: CGFloat) -> CGFloat {
-        15 + (2 - lane) * Tuning.laneSpacing
-    }
-
-    /// The top of the back sidewalk, where the buildings start.
-    static let groundTop = 54
-
-    /// One repeating stretch of sidewalk, street and sidewalk. The front and middle
-    /// lanes are in the street, the back lane on the far sidewalk.
-    static func ground(width: Int = 64) -> SKTexture {
-        var canvas = PixelCanvas(width: width, height: groundTop)
-        // Near sidewalk.
-        canvas.fill(x: 0, y: 0, width: width, height: 7, Palette.lightGrey)
-        for x in stride(from: 0, to: width, by: 16) { canvas.fill(x: x, y: 0, width: 1, height: 7, Palette.grey) }
-        // Near curb and gutter.
-        canvas.fill(x: 0, y: 7, width: width, height: 2, Palette.white)
-        canvas.fill(x: 0, y: 9, width: width, height: 1, Palette.grey)
-        // Street, with a dashed line between the front and middle lanes.
-        canvas.fill(x: 0, y: 10, width: width, height: 27, Palette.asphalt)
-        for x in stride(from: 0, to: width, by: 16) { canvas.fill(x: x, y: 22, width: 8, height: 1, Palette.yellow) }
-        // Far curb and the back sidewalk.
-        canvas.fill(x: 0, y: 37, width: width, height: 1, Palette.grey)
-        canvas.fill(x: 0, y: 38, width: width, height: 2, Palette.white)
-        canvas.fill(x: 0, y: 40, width: width, height: groundTop - 40, Palette.lightGrey)
-        for x in stride(from: 8, to: width, by: 16) { canvas.fill(x: x, y: 40, width: 1, height: groundTop - 40, Palette.grey) }
-        canvas.fill(x: 0, y: groundTop - 1, width: width, height: 1, Palette.grey)
-        return canvas.texture()
-    }
-
-    /// Far-off towers in haze. Repeats every `width` pixels.
-    static func skyline(width: Int = 384, height: Int = 100) -> SKTexture {
-        var canvas = PixelCanvas(width: width, height: height)
-        var generator = SeededGenerator(seed: 7)
-        var x = 0
-        while x < width {
-            let w = Int.random(in: 14...34, using: &generator)
-            let h = Int.random(in: 24...(height - 10), using: &generator)
-            canvas.fill(x: x, y: 0, width: min(w, width - x), height: h, Palette.farCity)
-            if Bool.random(using: &generator) {
-                canvas.fill(x: x + w / 2, y: h, width: 1, height: 6, Palette.farCity)
-            }
-            for wy in stride(from: 6, to: h - 4, by: 6) {
-                for wx in stride(from: x + 3, to: min(x + w - 2, width), by: 5) where Int.random(in: 0..<4, using: &generator) == 0 {
-                    canvas.set(wx, wy, Palette.farCityLight)
-                }
-            }
-            x += w + Int.random(in: 0...6, using: &generator)
-        }
-        return canvas.texture()
-    }
-
-    /// Brick buildings across the street, with lit windows. Repeats every `width` pixels.
-    static func buildings(width: Int = 320, height: Int = 70) -> SKTexture {
-        var canvas = PixelCanvas(width: width, height: height)
-        var generator = SeededGenerator(seed: 11)
-        var x = 0
-        while x < width {
-            let w = min(Int.random(in: 40...72, using: &generator), width - x)
-            let h = Int.random(in: 30...height, using: &generator)
-            let wall = Bool.random(using: &generator) ? Palette.brick : Palette.grey
-            let trim = wall == Palette.brick ? Palette.brickDark : Palette.darkGrey
-            canvas.fill(x: x, y: 0, width: w, height: h, wall)
-            canvas.fill(x: x, y: h - 2, width: w, height: 2, trim)
-            canvas.fill(x: x, y: 0, width: 1, height: h, trim)
-            for wy in stride(from: 10, to: h - 6, by: 9) {
-                for wx in stride(from: x + 5, to: x + w - 6, by: 9) {
-                    let lit = Int.random(in: 0..<3, using: &generator) == 0
-                    canvas.fill(x: wx, y: wy, width: 4, height: 5, lit ? Palette.window : Palette.black)
-                }
-            }
-            // A shop door at street level.
-            canvas.fill(x: x + w / 2 - 3, y: 0, width: 6, height: 8, Palette.black)
-            x += w
-        }
-        return canvas.texture()
-    }
-
-    /// A soft oval shadow on the ground.
-    static func shadow(width: Int = 18) -> SKTexture {
-        var canvas = PixelCanvas(width: width, height: 2)
-        canvas.fill(x: 1, y: 0, width: width - 2, height: 2, Palette.shadow)
-        canvas.fill(x: 0, y: 1, width: width, height: 1, Palette.shadow)
         return canvas.texture()
     }
 }
@@ -489,6 +224,8 @@ enum PixelFont {
         ".": [".", ".", ".", ".", ".", ".", "#"],
         "/": ["....#", "....#", "...#.", "..#..", ".#...", "#....", "#...."],
         "?": [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
+        "<": ["...#", "..#.", ".#..", "#...", ".#..", "..#.", "...#"],
+        ">": ["#...", ".#..", "..#.", "...#", "..#.", ".#..", "#..."],
         " ": ["...", "...", "...", "...", "...", "...", "..."],
     ]
 
@@ -522,6 +259,31 @@ enum PixelFont {
         if cache.count > 200 { cache.removeAll() }
         cache[key] = texture
         return texture
+    }
+
+    /// Draws text into a canvas, with no shadow.
+    static func draw(_ text: String, into canvas: inout PixelCanvas, x: Int, y: Int, color: PixelColor) {
+        var cursor = x
+        for character in text.uppercased() {
+            let rows = glyph(character)
+            canvas.draw(PixelSprite(rows.map { $0.replacingOccurrences(of: "#", with: "x") }, colors: ["x": color]), x: cursor, y: y)
+            cursor += rows[0].count + gap
+        }
+    }
+
+    /// Text in several colors side by side, each with the drop shadow: say, found
+    /// letters in gold and missing ones in grey.
+    static func texture(runs: [(String, PixelColor)]) -> SKTexture {
+        let text = runs.map(\.0).joined()
+        var canvas = PixelCanvas(width: width(of: text), height: glyphHeight + 1)
+        for pass in [1, 0] {
+            var x = 0
+            for (part, color) in runs {
+                draw(part, into: &canvas, x: x, y: 1 - pass, color: pass == 1 ? Palette.black : color)
+                x += width(of: part) + gap
+            }
+        }
+        return canvas.texture()
     }
 
     /// Every glyph, for checking they're all the right size.
