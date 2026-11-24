@@ -93,6 +93,9 @@ skate/
     Menus.swift        The title, city picker, spot list, skater builder, full game
                        screen and tip jar (MenuScene), plus the pixel button.
     Sounds.swift       Chip-style sound effects, generated as WAV data in code.
+    Chiptune.swift     The music synth and sequencer.
+    Songs.swift        The soundtrack: a song per spot, written as text.
+    Music.swift        Plays a spot's song: intro once, then the loop.
     Haptics.swift      Taps, thuds and the grind rumble (Core Haptics).
     Store.swift        In-app purchases (StoreKit 2).
   Marketing.swift      Debug builds only: renders the App Store screenshots and art.
@@ -105,7 +108,8 @@ AppStore/
   checklist.md         Step by step: support pages, app record, upload, submit.
   make_assets.sh       Re-renders the screenshots and art from the game.
   check_safe_areas.swift  Draws Apple's safe areas on the header and search art.
-  screenshots/, art/   The rendered PNGs.
+  make_tip_images.swift   Draws the three tips' 1024 x 1024 promotional images.
+  upload/              Everything to upload, a folder per App Store Connect section.
   ExportOptions.plist, UploadOptions.plist   Settings for exporting or uploading.
   icon/make_icon.swift Draws the app icon PNGs.
 docs/                  The support and privacy pages (GitHub Pages, from /docs).
@@ -197,12 +201,38 @@ draws the canvas with `cgImage()` to a PNG.
 
 ## Sound and haptics
 
-- **Sounds:** generated as square, triangle and noise waves into WAV data in
-  `Sounds.swift`, and played with `AVAudioPlayer`. The audio session is
-  `.ambient`, so the mute switch silences the game and the player's own music
-  keeps playing.
-- **Mute:** a setting is saved, but there's no button for it yet.
-- **Music:** none yet. Planned as a chiptune loop per city.
+- **Sounds:** generated as square, triangle and noise waves in `Sounds.swift`,
+  kept as buffers in memory and played through an `AVAudioEngine`: six voices
+  take turns with one-off sounds, and each looping sound has its own. (One
+  `AVAudioPlayer` per sound took about 9 seconds to set up in the simulator.)
+  Nothing is built until a spot starts or a sound first plays. The audio session
+  is `.ambient`, so the silent switch silences the game and the player's own
+  music keeps playing.
+- **Which sound for what:**
+  - Rolling: a quiet loop of wheels and pavement clacks.
+  - Tricks: flips whir, spins whoosh and grabs fwip.
+  - Grinds: a clank when you lock on, then a loop for metal (rails), concrete or
+    wood (ledges, benches, curbs) or a boardslide.
+  - Rewards: chimes for clearing something, banking a combo, a gap and a goal.
+  - Also: a launch off quarter pipes, a whistle and thud down a manhole, and
+    crackle for the fireworks.
+- **Music and sound switches:** a music note and a speaker in the top-left corner
+  of the title screen, the goals screen and the pause menu. Each crosses out in
+  red when off. They're separate (`Music.shared.isOn`, saved as `musicOff`;
+  `Sounds.shared.isMuted`, saved as `soundMuted`), so you can keep the skate
+  sounds without the songs.
+- **Music:** each spot has its own song: 90s skate punk played on an NES.
+  - `Chiptune.swift` is a little sound chip and sequencer: a pulse lead, clipped
+    power chords, a stepped triangle bass and noise drums.
+  - `Songs.swift` has the songs, written as text a bar at a time (the format is
+    at the top of `Chiptune.swift`). A test checks every bar is the right length.
+  - `Music.swift` plays them: the intro once, then the rest loops. A song is
+    rendered in the background the first time it's needed, then kept. It's
+    quieter under menus, stops on the menus, and stays silent if the player
+    already has their own music playing.
+  - To listen outside the game, build `tools/music/main.swift` (the command is at
+    its top) and render the songs to WAV files.
+  - Tempos run from the waterfront's 124 BPM to Zoo Bomb's 232.
 - **Haptics:** a continuous Core Haptics rumble runs while grinding. The scene
   stops it whenever the skater isn't grinding, as a safety net against it
   getting stuck.
@@ -312,7 +342,8 @@ keys and IDs are saved on players' phones: don't rename them.**
 | `letters.<cityID>` | Letters found in a city, by index. |
 | `bestScore.<levelID>` | Best score at a spot. |
 | `goals.<levelID>` | Goal IDs done at a spot. |
-| `soundMuted` | Mute setting. |
+| `soundMuted` | Sound effects off. |
+| `musicOff` | Music off. |
 | `fullGameUnlocked` | Cached full-game ownership. The App Store is the source of truth. |
 
 Watch out for:
@@ -411,8 +442,6 @@ there at all.
 - **The privacy manifest** (`skate/PrivacyInfo.xcprivacy`) declares UserDefaults
   use. Update it if you add tracking, analytics or other required-reason APIs.
 - **Not done yet** (see `BACKLOG.md`):
-  - music
-  - a mute button
   - a real downhill slope on the Zoo Bomb
   - the other eight cities
   - the full game purchase

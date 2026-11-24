@@ -102,7 +102,7 @@ enum Marketing {
                                                    combo: [.fiftyFifty, .kickflip], comboBonus: 130, score: 3450)),
                  lettersFound: [0, 1, 2], anchor: 0.2,
                  popups: [("CONE +130", Palette.yellow)]),
-            Shot(name: "grind", caption: "GRIND PORTLAND SPOTS",
+            Shot(name: "grind", caption: "GRIND REAL CITY SPOTS",
                  source: .run(skidmore, RunStaging(x: 1716, lane: .back, height: 12,
                                                    state: .grinding(feature: feature(skidmore, .fountain, at: 1600), trick: .fiftyFifty),
                                                    combo: [.kickflip, .fiftyFifty], score: 1850)),
@@ -119,7 +119,7 @@ enum Marketing {
                                                      state: .grinding(feature: feature(waterfront, .handrail, at: 1700), trick: .boardslide),
                                                      combo: [.heelflip, .fiftyFifty, .boardslide], score: 4210)),
                  outfit: angie, lettersFound: [0, 1, 2, 3, 4, 5], anchor: 0.2, sparks: true),
-            Shot(name: "letters", caption: "SPELL OUT PORTLAND",
+            Shot(name: "letters", caption: "SPELL OUT THE CITY",
                  source: .run(north, RunStaging(x: 1494, lane: .back, height: 9,
                                                 state: .grinding(feature: feature(north, .bench, at: 1480), trick: .fiftyFifty),
                                                 combo: [.kickflip, .fiftyFifty], score: 2760)),
@@ -138,15 +138,23 @@ enum Marketing {
         ]
     }
 
-    /// The key art: a kickflip over a bench on the waterfront, with the bridges, Mt Hood
-    /// and Big Pink behind, in the middle of the frame, no HUD or text. `height` puts
-    /// the skater inside each format's safe area. (Not Downtown: Portlandia and the
-    /// PORTLAND OREGON sign belong to others, so they're kept out of the key art.)
-    static func keyArt(height: CGFloat, level: Level = .southeastWaterfront, x: CGFloat = 1400) -> Shot {
+    /// The key art: an ollie high over a bench on the waterfront, board flat under the
+    /// feet, with the bridges, Mt Hood and Big Pink behind, in the middle of the frame,
+    /// no HUD or text. `height` puts the skater clear of the bench and inside each
+    /// format's safe area. (Not Downtown: Portlandia and the PORTLAND OREGON sign
+    /// belong to others, so they're kept out of the key art.)
+    static func keyArt(height: CGFloat, level: Level = .southeastWaterfront, x: CGFloat = 1398) -> Shot {
         Shot(name: "key-art", caption: nil,
-             source: .run(level, RunStaging(x: x, lane: .middle, height: height, state: .airborne,
-                                            airTrick: AirTrick(trick: .kickflip, elapsed: 0.1, duration: 0.32))),
-             anchor: 0.5, hud: false)
+             source: .run(level, RunStaging(x: x, lane: .middle, height: height, state: .airborne)),
+             outfit: keyArtOutfit, anchor: 0.5, hud: false)
+    }
+
+    /// Pat as usual, but on a white board: the default brown one vanishes against the
+    /// boardwalk and the bench.
+    private static var keyArtOutfit: Outfit {
+        var outfit = Outfit()
+        outfit.board = .white
+        return outfit
     }
 
     /// Places to try for the key art, rendered as headers by `-keyArtDrafts YES`.
@@ -181,9 +189,9 @@ enum Marketing {
                 await export(shot, format: format, host: host, to: out, file: "\(index + 1)-\(shot.name).png")
             }
         }
-        await export(keyArt(height: 8), format: header, host: host, to: out, file: "header.png")
+        await export(keyArt(height: 15), format: header, host: host, to: out, file: "header.png")
         await export(keyArt(height: 21), format: universal, host: host, to: out, file: "universal.png")
-        await export(keyArt(height: 12), format: search, host: host, to: out, file: "search.png")
+        await export(keyArt(height: 17), format: search, host: host, to: out, file: "search.png")
         await export(Shot(name: "tips", caption: nil, source: .menu(.tips(back: .title))), format: review,
                      host: host, to: out, file: "iap-review-tip-jar.png")
 

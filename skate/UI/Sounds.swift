@@ -27,9 +27,40 @@ nonisolated enum Sound: CaseIterable, Sendable {
     case finish
     /// Picking up one of the city's letters.
     case letter
+    /// Wheels on pavement, with a clack over the cracks. Loops while rolling.
+    case roll
+    /// Concrete and wood under the trucks: ledges, benches, curbs. Loops.
+    case scrape
+    /// A boardslide: the deck scraping across. Loops.
+    case slide
+    /// Locking onto a rail or ledge.
+    case lock
+    /// A kickflip or heelflip: a flick and the board whirring round.
+    case flip
+    /// A shove-it or 360 flip: a whoosh.
+    case spin
+    /// A grab.
+    case grab
+    /// Flying off the lip of a quarter pipe.
+    case launch
+    /// Getting all the way over something.
+    case clear
+    /// A combo counted into the score.
+    case bank
+    /// A named gap.
+    case gap
+    /// A goal done.
+    case goal
+    /// Dropping into a manhole.
+    case fall
+    /// A firework going off.
+    case burst
+
+    /// The sounds that loop for as long as something lasts.
+    static let loops: Set<Sound> = [.grind, .scrape, .slide, .roll]
 }
 
-/// Builds each sound as 16-bit mono WAV data.
+/// Builds each sound's samples, from -1 to 1.
 nonisolated enum SoundSynth {
     static let sampleRate = 22_050.0
 
@@ -114,76 +145,183 @@ nonisolated enum SoundSynth {
             let notes: [Double] = [523, 659, 784, 1047]
             return notes.flatMap { square(from: $0, to: $0, seconds: 0.1, level: 0.18, duty: 0.25) }
                 + square(from: 1047, to: 1047, seconds: 0.3, level: 0.18, duty: 0.5)
+        case .roll:
+            // Half a second: a low rumble, and two clacks over the sidewalk joints.
+            let count = Int(0.5 * sampleRate)
+            var generator = SeededGenerator(seed: 10)
+            var value = 0.0
+            var out = (0..<count).map { (index: Int) -> Double in
+                if index % 14 == 0 { value = Double.random(in: -1...1, using: &generator) }
+                return value * 0.09
+            }
+            let clack = mix(noise(seconds: 0.03, hold: 2, level: 0.2, decay: 0.008, seed: 11), triangle(95, seconds: 0.03, level: 0.2))
+            for start in [0, count / 2] {
+                for (offset, sample) in clack.enumerated() where start + offset < count { out[start + offset] += sample }
+            }
+            return out
+        case .scrape:
+            let count = Int(0.4 * sampleRate)
+            var generator = SeededGenerator(seed: 12)
+            var value = 0.0
+            return (0..<count).map { (index: Int) -> Double in
+                if index % 2 == 0 { value = Double.random(in: -1...1, using: &generator) }
+                // A gritty rasp that wobbles as the trucks chatter (whole cycles, so it loops cleanly).
+                let wobble = 0.7 + 0.3 * sin(2 * .pi * 15 * Double(index) / Double(count) * 0.4)
+                return value * 0.15 * wobble
+            }
+        case .slide:
+            let count = Int(0.4 * sampleRate)
+            var generator = SeededGenerator(seed: 13)
+            var value = 0.0
+            return (0..<count).map { (index: Int) -> Double in
+                if index % 4 == 0 { value = Double.random(in: -1...1, using: &generator) }
+                let buzz: Double = (Double(index) * 95 / sampleRate).truncatingRemainder(dividingBy: 1) < 0.25 ? 1 : -1
+                let wobble = 0.75 + 0.25 * sin(2 * .pi * 10 * Double(index) / Double(count) * 0.4)
+                return (value * 0.13 + buzz * 0.04) * wobble
+            }
+        case .lock:
+            return mix(mix(square(from: 1180, to: 1180, seconds: 0.09, level: 0.12, duty: 0.25),
+                           square(from: 1770, to: 1770, seconds: 0.07, level: 0.08, duty: 0.5)),
+                       noise(seconds: 0.04, hold: 2, level: 0.2, decay: 0.01, seed: 14))
+        case .flip:
+            // A flick, then the board whirring: a rising tone that flutters.
+            let whir = square(from: 500, to: 1400, seconds: 0.12, level: 0.11, duty: 0.125).enumerated().map { index, sample in
+                sample * ((index / 220) % 2 == 0 ? 1 : 0.35)
+            }
+            return mix(whir, noise(seconds: 0.05, hold: 1, level: 0.16, decay: 0.015, seed: 15))
+        case .spin:
+            // A whoosh that swells and fades.
+            let count = Int(0.2 * sampleRate)
+            var generator = SeededGenerator(seed: 16)
+            var value = 0.0
+            return (0..<count).map { (index: Int) -> Double in
+                if index % 2 == 0 { value = Double.random(in: -1...1, using: &generator) }
+                let progress = Double(index) / Double(count)
+                return value * 0.18 * sin(.pi * progress)
+            }
+        case .grab:
+            return mix(noise(seconds: 0.08, hold: 3, level: 0.16, decay: 0.03, seed: 17),
+                       square(from: 320, to: 260, seconds: 0.05, level: 0.08, duty: 0.25))
+        case .launch:
+            return mix(square(from: 180, to: 900, seconds: 0.22, level: 0.18, duty: 0.25),
+                       noise(seconds: 0.15, hold: 2, level: 0.15, decay: 0.05, seed: 18))
+        case .clear:
+            return square(from: 880, to: 880, seconds: 0.04, level: 0.13, duty: 0.25)
+                + square(from: 1175, to: 1175, seconds: 0.06, level: 0.13, duty: 0.25)
+        case .bank:
+            return square(from: 1319, to: 1319, seconds: 0.05, level: 0.14, duty: 0.5)
+                + square(from: 1976, to: 1976, seconds: 0.16, level: 0.14, duty: 0.5)
+        case .gap:
+            let notes: [Double] = [659, 784, 988, 1319]
+            return notes.flatMap { square(from: $0, to: $0, seconds: 0.05, level: 0.15, duty: 0.25) }
+                + square(from: 1568, to: 1568, seconds: 0.16, level: 0.15, duty: 0.25)
+        case .goal:
+            let notes: [Double] = [784, 988, 1175]
+            let fanfare = notes.flatMap { square(from: $0, to: $0, seconds: 0.08, level: 0.15, duty: 0.5) }
+                + square(from: 1568, to: 1568, seconds: 0.28, level: 0.15, duty: 0.5)
+            return mix(fanfare, silence(0.24) + triangle(196, seconds: 0.28, level: 0.3))
+        case .fall:
+            let whistle = square(from: 1200, to: 150, seconds: 0.45, level: 0.16, duty: 0.5)
+            let thud = mix(triangle(60, seconds: 0.15, level: 0.45), noise(seconds: 0.12, hold: 8, level: 0.3, decay: 0.04, seed: 19))
+            return whistle + thud
+        case .burst:
+            return mix(noise(seconds: 0.45, hold: 2, level: 0.22, decay: 0.12, seed: 20),
+                       noise(seconds: 0.06, hold: 6, level: 0.3, decay: 0.02, seed: 21))
         }
-    }
-
-    /// Wraps samples in a WAV file header.
-    static func wav(for sound: Sound) -> Data {
-        let pcm = samples(for: sound).map { Int16(max(-1, min(1, $0)) * 32_000) }
-        let byteCount = pcm.count * 2
-        var data = Data()
-        func append<T: FixedWidthInteger>(_ value: T) {
-            withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
-        }
-        data.append(contentsOf: Array("RIFF".utf8))
-        append(UInt32(36 + byteCount))
-        data.append(contentsOf: Array("WAVE".utf8))
-        data.append(contentsOf: Array("fmt ".utf8))
-        append(UInt32(16))                    // size of the format block
-        append(UInt16(1))                     // PCM
-        append(UInt16(1))                     // mono
-        append(UInt32(sampleRate))
-        append(UInt32(sampleRate) * 2)        // bytes per second
-        append(UInt16(2))                     // bytes per sample
-        append(UInt16(16))                    // bits per sample
-        data.append(contentsOf: Array("data".utf8))
-        append(UInt32(byteCount))
-        for sample in pcm { append(sample) }
-        return data
     }
 }
 
 /// Plays the sound effects. Muting is remembered between launches.
+///
+/// Every sound is a buffer in memory played through an audio engine: a few voices
+/// take turns with the one-off sounds, and each looping sound has a voice of its
+/// own. (One `AVAudioPlayer` per sound was much slower to set up.)
 final class Sounds {
     static let shared = Sounds()
     private static let mutedKey = "soundMuted"
+    /// Voices for one-off sounds, so a few can overlap.
+    private static let voiceCount = 6
 
-    private var players: [Sound: AVAudioPlayer] = [:]
+    private let engine = AVAudioEngine()
+    private let format = AVAudioFormat(standardFormatWithSampleRate: SoundSynth.sampleRate, channels: 1)!
+    private var buffers: [Sound: AVAudioPCMBuffer] = [:]
+    private var voices: [AVAudioPlayerNode] = []
+    private var nextVoice = 0
+    private var loopVoices: [Sound: AVAudioPlayerNode] = [:]
+    private var isSetUp = false
 
     var isMuted: Bool {
         didSet {
             UserDefaults.standard.set(isMuted, forKey: Sounds.mutedKey)
-            if isMuted { stopLoop(.grind) }
+            if isMuted { stopAllLoops() }
         }
     }
 
     private init() {
         isMuted = UserDefaults.standard.bool(forKey: Sounds.mutedKey)
+    }
+
+    /// Makes every sound and sets up the audio session, so the first sound plays
+    /// without a hitch. Done on the first sound anyway; spots call it as they start.
+    func prepare() {
+        guard !isSetUp else { return }
+        isSetUp = true
         // Ambient: the silent switch mutes the game, and the player's own music keeps playing.
         try? AVAudioSession.sharedInstance().setCategory(.ambient)
         for sound in Sound.allCases {
-            guard let player = try? AVAudioPlayer(data: SoundSynth.wav(for: sound)) else { continue }
-            player.volume = 0.7
-            player.prepareToPlay()
-            players[sound] = player
+            let samples = SoundSynth.samples(for: sound)
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
+                  let channel = buffer.floatChannelData?[0] else { continue }
+            buffer.frameLength = AVAudioFrameCount(samples.count)
+            for (index, sample) in samples.enumerated() { channel[index] = Float(max(-1, min(1, sample))) }
+            buffers[sound] = buffer
         }
+        func addVoice() -> AVAudioPlayerNode {
+            let voice = AVAudioPlayerNode()
+            engine.attach(voice)
+            engine.connect(voice, to: engine.mainMixerNode, format: format)
+            return voice
+        }
+        voices = (0..<Self.voiceCount).map { _ in addVoice() }
+        for sound in Sound.loops {
+            let voice = addVoice()
+            // Rolling is there all the time, so it sits well back.
+            voice.volume = sound == .roll ? 0.3 : 0.7
+            loopVoices[sound] = voice
+        }
+        voices.forEach { $0.volume = 0.7 }
+    }
+
+    /// Starts the engine if it isn't running (it stops for calls and the background).
+    private func ready() -> Bool {
+        prepare()
+        if !engine.isRunning {
+            do { try engine.start() } catch { return false }
+        }
+        return true
     }
 
     func play(_ sound: Sound) {
-        guard !isMuted, let player = players[sound] else { return }
-        player.numberOfLoops = 0
-        player.currentTime = 0
-        player.play()
+        guard !isMuted, ready(), let buffer = buffers[sound] else { return }
+        let voice = voices[nextVoice]
+        nextVoice = (nextVoice + 1) % voices.count
+        voice.stop()
+        voice.scheduleBuffer(buffer, at: nil)
+        voice.play()
     }
 
     func startLoop(_ sound: Sound) {
-        guard !isMuted, let player = players[sound] else { return }
-        player.numberOfLoops = -1
-        player.currentTime = 0
-        player.play()
+        guard !isMuted, ready(), let buffer = buffers[sound], let voice = loopVoices[sound] else { return }
+        voice.stop()
+        voice.scheduleBuffer(buffer, at: nil, options: .loops)
+        voice.play()
     }
 
     func stopLoop(_ sound: Sound) {
-        players[sound]?.stop()
+        loopVoices[sound]?.stop()
+    }
+
+    func stopAllLoops() {
+        Sound.loops.forEach(stopLoop)
     }
 }

@@ -22,15 +22,16 @@ says straight away if a name is taken, and plain "Skate" almost certainly is. **
 | Option | Count | Why |
 |---|---|---|
 | `Skate: Tuesday Games` | [20] | Matches Mahjong and Sevens. Recommended. |
-| `Skate PDX: 8-Bit Skateboarding` | [30] | Puts "skateboarding" in the name, which search weighs most. |
-| `Skate Portland` | [14] | Short; says where it's set. |
+| `Skate: 8-Bit Skateboarding` | [26] | Puts "skateboarding" in the name, which search weighs most. |
+
+Neither names a city: Portland is the first of the game's cities, not the game.
 
 The name under the icon stays **Skate** (set in the project).
 
 ### Subtitle (30 max)
 
 - With `Skate: Tuesday Games`: **`One-Thumb Pixel Skateboarding`** [29]
-- With `Skate PDX: 8-Bit Skateboarding`: **`One-Thumb Tricks in Portland`** [28]
+- With `Skate: 8-Bit Skateboarding`: **`One-Thumb Street Tricks`** [23]
 
 ### Category **YOU**
 
@@ -54,7 +55,7 @@ content?" **YOU**. Here are the facts to decide from:
   enforced it, and the City of Portland holds a trademark on the White Stag
   sign's image. That's general knowledge I haven't checked here. Both are in the
   game itself (Downtown and Skidmore backdrops). I kept them out of the header
-  and search art, but they appear small in two screenshots ("Grind Portland
+  and search art, but they appear small in two screenshots ("Grind real city
   spots" shows the sign; "Nail the big gaps" shows the statue). Decide whether
   to keep, redraw or remove them before release.
 
@@ -146,16 +147,16 @@ me. I'll look it up rather than guess.
 
 ### Promotional text (170 max) [162]
 
-> Six real Portland spots, one thumb. Kickflip cones downtown, grind Skidmore Fountain, bomb the Zoo hill and spell out PORTLAND. No ads, no account, plays offline.
+> Kickflip, grind and combo through real city spots with one thumb. Start in Portland: six spots, goals at every one and hidden letters to find. No ads, no account.
 
-### Description (4000 max) [1286]
+### Description (4000 max) [1284]
 
-> Skate real Portland spots with one thumb.
+> Skate real city streets with one thumb.
 >
-> Tap to ollie, swipe to flip, and land on rails, ledges and benches to grind them. String tricks together into big combos as you roll through six spots across the city, from Skidmore Fountain to the top of the Zoo Bomb hill.
+> Tap to ollie, swipe to flip, and land on rails, ledges and benches to grind them. String tricks together into big combos, nail each spot's named gaps, and find the hidden letters that spell out the city's name.
 >
-> SIX PORTLAND SPOTS
-> • Downtown, Skidmore Fountain, Burnside Skatepark, North Portland, the SE Waterfront and Zoo Bomb
+> START IN PORTLAND
+> • Six spots: Downtown, Skidmore Fountain, Burnside Skatepark, North Portland, the SE Waterfront and Zoo Bomb
 > • Dodge or ollie light rail trains, joggers, bikes, shopping carts, goats, penguins and Zoobombers on little bikes
 > • Bridges, Mt Hood, Big Pink, Paul Bunyan and the food carts roll by behind you
 >
@@ -167,7 +168,7 @@ me. I'll look it up rather than guess.
 >
 > GOALS AND SECRETS
 > • Five goals at every spot, from high scores to named gaps
-> • Hidden letters at every spot: find them all and spell out PORTLAND for a special board
+> • Hidden letters at every spot: find them all to spell out the city and win a special board
 > • Skate as Pat, Sammy or Angie the dog, in the colors and board you pick
 >
 > PLAY ANYWHERE
@@ -178,14 +179,14 @@ me. I'll look it up rather than guess.
 >
 > The tip jar is optional and unlocks nothing. Every tip helps us keep making games.
 
-### Keywords (100 max, commas, no spaces) [98]
+### Keywords (100 max, commas, no spaces) [97]
 
-`skateboard,skater,kickflip,ollie,grind,tricks,8-bit,retro,arcade,portland,pdx,combo,runner,offline`
+`skateboard,skater,kickflip,ollie,grind,tricks,8-bit,retro,arcade,city,street,combo,runner,offline`
 
 These assume the name `Skate: Tuesday Games` and subtitle `One-Thumb Pixel
 Skateboarding`; Apple searches the name and subtitle too, so their words are
-left out. With the `Skate PDX` name, use this instead [96]:
-`skater,kickflip,ollie,grind,tricks,retro,arcade,portland,combo,runner,offline,board,street,sport`
+left out. With `Skate: 8-Bit Skateboarding` / `One-Thumb Street Tricks`, swap
+`8-bit` and `street` for `pixel` and `sport`.
 
 ### What's New
 
@@ -221,18 +222,18 @@ All rendered from the game itself by `AppStore/make_assets.sh` (see
 
 | Slot in App Store Connect | Folder | Size |
 |---|---|---|
-| iPhone, Dynamic Island, medium (6.1"/6.3"): **required** | `screenshots/iphone-6.1in-2556x1179/` | 2556 × 1179 |
-| iPhone, Dynamic Island, large (6.9"): optional | `screenshots/iphone-6.9in-2868x1320/` | 2868 × 1320 |
-| iPad 13": **required** (the game runs on iPad) | `screenshots/ipad-13in-2752x2064/` | 2752 × 2064 |
+| iPhone, Dynamic Island, medium (6.1"/6.3"): **required** | `upload/Screenshots iPhone 6.1in/` | 2556 × 1179 |
+| iPhone, Dynamic Island, large (6.9"): optional | `upload/Screenshots iPhone 6.9in/` | 2868 × 1320 |
+| iPad 13": **required** (the game runs on iPad) | `upload/Screenshots iPad 13in/` | 2752 × 2064 |
 
 Upload in this order (the first three show in search results, so they lead with
 the best features, as Apple's guide asks):
 
 1. `1-flip`: **FLIP IT WITH ONE THUMB**: a kickflip over two cones Downtown.
-2. `2-grind`: **GRIND PORTLAND SPOTS**: a 50-50 on Skidmore Fountain.
+2. `2-grind`: **GRIND REAL CITY SPOTS**: a 50-50 on Skidmore Fountain.
 3. `3-combo`: **STACK UP HUGE COMBOS**: a 360 flip over a barrier on Zoo Bomb, four tricks deep.
 4. `4-angie`: **SKATE AS ANGIE THE DOG**: Angie boardsliding a handrail on the waterfront.
-5. `5-letters`: **SPELL OUT PORTLAND**: grinding a bench for a letter by the food carts.
+5. `5-letters`: **SPELL OUT THE CITY**: grinding a bench for a letter by the food carts.
 6. `6-gaps`: **NAIL THE BIG GAPS**: the Pioneer Gap, rail to rail.
 7. `7-goals`: **5 GOALS AT EVERY SPOT**: the goals screen.
 8. `8-skater`: **PICK YOUR SKATER**: the skater builder.
@@ -241,15 +242,16 @@ Captions are short phrases, as Apple suggests, with no prices, URLs or claims.
 
 ### Header and search results (General → Header and Search Results)
 
-In `art/`:
+In `upload/Header and Search Results/`:
 
 | Asset | File | Size | Notes |
 |---|---|---|---|
 | Header (21:9) | `header.png` | 3840 × 1646 | Skater inside the 1646 × 661 safe area |
 | Universal (16:9) | `universal.png` | 5244 × 2950 | Skater inside the 1402 × 962 safe area. Use this if you want one image for both. |
-| Search results (3:2) | `search.png` | 3840 × 2560 | Skater inside the 2168 × 1030 safe area |
+| Search results (3:2) | `search-results.png` | 3840 × 2560 | Skater inside the 2168 × 1030 safe area |
 
-All three are the same moment: a kickflip over a bench on the waterfront, with
+All three are the same moment: Pat ollieing high over a bench on the waterfront,
+on a white board so it stands out from the boardwalk, with
 Tilikum Crossing, Mt Hood, the Steel Bridge and Big Pink behind. No text, since
 Apple overlays the app's name. To see the safe areas drawn on, run
 `swift AppStore/check_safe_areas.swift <folder>`. Use Apple's Preview in App
@@ -268,16 +270,21 @@ you want it.
 
 Create the three tips under **Monetization → In-App Purchases** with exactly these
 product IDs (the app looks them up by ID). Display names match the store file
-and the tip jar's SMALL / MEDIUM / LARGE.
+and the tip jar's SMALL / GENEROUS / BIG, the same names as Mahjong and Sevens.
 
 | Product ID | Type | Reference name | Price | Display name (30 max) | Description (45 max) |
 |---|---|---|---|---|---|
 | `skate.tip.small` | Consumable | Small tip | $0.99 | Small tip [9] | A small thank-you to Tuesday Games. [35] |
-| `skate.tip.medium` | Consumable | Medium tip | $2.99 | Medium tip [10] | A generous thank-you to Tuesday Games. [38] |
-| `skate.tip.large` | Consumable | Large tip | $4.99 | Large tip [9] | A very generous thank-you to Tuesday Games. [43] |
+| `skate.tip.medium` | Consumable | Generous tip | $2.99 | Generous tip [12] | A generous thank-you to Tuesday Games. [38] |
+| `skate.tip.large` | Consumable | Big tip | $4.99 | Big tip [7] | A very generous thank-you to Tuesday Games. [43] |
 
-- **Review screenshot** for all three: `art/iap-review-tip-jar.png` (2556 × 1179,
-  the tip jar screen).
+- **Promotional image** (optional, 1024 × 1024), in `upload/In-App Purchases/`:
+  `promo-small-tip.png`, `promo-generous-tip.png` and `promo-big-tip.png`, one per tip,
+  as Apple asks. A tip jar filling up; no text, nothing in the lower-left corner
+  where Apple's frame can put the app icon. Remade by
+  `AppStore/make_assets.sh`.
+- **Review screenshot** for all three: `upload/In-App Purchases/review-screenshot-all-tips.png` (2556 × 1179,
+  the tip jar screen). It goes under Review Information, not the promotional image.
 - **Review notes** for all three: "Tap TIP JAR on the title screen (it's also on
   the city picker, the spot list and every finish screen). Tips are optional, can
   be given more than once and unlock nothing; the screen says THANK YOU! after a
@@ -301,7 +308,7 @@ Notes:
 See the attached video, recorded on an iPhone. It shows launching the app, the tutorial, choosing Portland and a spot, a run with tricks, grinds and a goal, the skater builder, and the tip jar with a tip.
 
 2. PURPOSE AND AUDIENCE
-Skate is a single-player, 8-bit skateboarding game for all ages, played with one thumb. The skater rolls on their own through six spots in Portland, Oregon; you tap, hold and swipe to ollie, flip, grind and change lanes, building combos for points and completing goals at each spot. No ads and no account.
+Skate is a single-player, 8-bit skateboarding game for all ages, played with one thumb. The skater rolls on their own through real city spots, starting with six in Portland, Oregon; you tap, hold and swipe to ollie, flip, grind and change lanes, building combos for points and completing goals at each spot. No ads and no account.
 
 3. SETUP AND ACCESS
 No account, login or setup is needed, and the app works offline. From the title screen:

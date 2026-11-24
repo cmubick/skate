@@ -9,10 +9,10 @@ import AppKit
 let safeAreas: [(file: String, rect: CGRect)] = [
     ("header.png", CGRect(x: 1097, y: 493, width: 1646, height: 661)),
     ("universal.png", CGRect(x: 1921, y: 660, width: 1402, height: 962)),
-    ("search.png", CGRect(x: 836, y: 765, width: 2168, height: 1030)),
+    ("search-results.png", CGRect(x: 836, y: 765, width: 2168, height: 1030)),
 ]
 let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? ".")
-let art = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("art")
+let art = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("upload/Header and Search Results")
 
 for (file, rect) in safeAreas {
     guard let image = NSImage(contentsOf: art.appendingPathComponent(file)),

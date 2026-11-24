@@ -82,3 +82,8 @@ From the design doc: one real spot (Downtown square, final art style, letters, s
   - Key art is on the waterfront, not Downtown: Portlandia (copyright held by the sculptor) and the White Stag PORTLAND OREGON sign (a City of Portland trademark) are kept out of it.
   - To decide before release: Portlandia and the White Stag sign in the game itself; Burnside's "SK8 OR DIE"/skull graffiti for a 4+ rating; whether to hide "COMING SOON FOR $4.99" until the full game is on sale.
   - Maybe: an App Preview video (15-30 s); Accessibility Nutrition Labels (voluntary for now; "Differentiate Without Color Alone" would need found letters marked some way other than color).
+
+- **Music** (2026-11-23): each spot has its own original song, 90s skate punk played on an NES, generated in code (`Chiptune.swift`, `Songs.swift`, `Music.swift`). Downtown 184 BPM bouncy skate punk; Skidmore 152 ska-punk; Burnside 200 dark and fast; North Portland 168 pop-punk anthem; SE Waterfront 124 slow and melodic; Zoo Bomb 232 hardcore, the fastest. The intro plays once, then the rest loops. Quieter under menus; none on the menus themselves yet.
+  - To do: menu or title music, and songs for each new city.
+- **Sounds for every skate move** (2026-11-23): rolling wheels, flips, spins, grabs, a lock-on clank, three grind loops (metal rails, concrete and wood, boardslides), quarter-pipe launches, clears, banked combos, gaps, goals, manhole falls and firework crackle.
+- **Music and sound switches** (2026-11-23): a note and a speaker icon in the top-left of the title, goals and pause screens; separate settings, remembered. Sound effects now play through an audio engine from in-memory buffers, which also fixed a slow first load of each spot.

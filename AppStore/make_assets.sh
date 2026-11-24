@@ -1,6 +1,7 @@
 #!/bin/zsh
 # Renders the App Store screenshots and artwork from the game itself and copies
-# them into AppStore/screenshots and AppStore/art. Needs Xcode and a simulator.
+# them into AppStore/upload, in a folder per App Store Connect section, along
+# with the tips' promotional images. Needs Xcode and a simulator.
 #
 #   AppStore/make_assets.sh [simulator name or id]
 #
@@ -34,12 +35,18 @@ grep "MARKETING" "$LOG" || { echo "The export didn't finish. Log: $LOG"; exit 1;
 xcrun simctl terminate "$DEVICE" $BUNDLE 2>/dev/null || true
 
 SRC="$DATA/Documents/AppStore"
-rm -rf AppStore/screenshots AppStore/art
-mkdir -p AppStore/screenshots AppStore/art
-for dir in iphone-6.1in-2556x1179 iphone-6.9in-2868x1320 ipad-13in-2752x2064; do
-  cp -R "$SRC/$dir" AppStore/screenshots/
-done
-for dir in header-3840x1646 universal-5244x2950 search-3840x2560 iap-review-2556x1179; do
-  cp "$SRC/$dir"/*.png AppStore/art/
-done
-echo "Done: AppStore/screenshots and AppStore/art"
+# Everything to upload, in folders named after App Store Connect's sections.
+UP="AppStore/upload"
+mkdir -p "$UP"
+rm -rf "$UP/Screenshots iPhone 6.1in" "$UP/Screenshots iPhone 6.9in" "$UP/Screenshots iPad 13in" "$UP/Header and Search Results" "$UP/In-App Purchases"
+cp -R "$SRC/iphone-6.1in-2556x1179" "$UP/Screenshots iPhone 6.1in"
+cp -R "$SRC/iphone-6.9in-2868x1320" "$UP/Screenshots iPhone 6.9in"
+cp -R "$SRC/ipad-13in-2752x2064" "$UP/Screenshots iPad 13in"
+mkdir -p "$UP/Header and Search Results" "$UP/In-App Purchases"
+cp "$SRC/header-3840x1646/header.png" "$UP/Header and Search Results/header.png"
+cp "$SRC/search-3840x2560/search.png" "$UP/Header and Search Results/search-results.png"
+cp "$SRC/universal-5244x2950/universal.png" "$UP/Header and Search Results/universal.png"
+cp "$SRC/iap-review-2556x1179/iap-review-tip-jar.png" "$UP/In-App Purchases/review-screenshot-all-tips.png"
+# The tips' promotional images aren't from the game: they're drawn by their own script.
+swift AppStore/make_tip_images.swift "$UP/In-App Purchases"
+echo "Done: $UP"

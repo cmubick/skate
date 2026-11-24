@@ -42,7 +42,7 @@ The marketing exporter and the `-page`, `-level`, `-fireworks` launch options ar
 
 **Monetization → In-App Purchases**: the three tips from `listing.md`, with
 exactly those product IDs, prices, names and descriptions. Add the review
-screenshot `art/iap-review-tip-jar.png` and the review note to each. Don't create
+screenshot `upload/In-App Purchases/review-screenshot-all-tips.png` and the review note to each. Don't create
 the full game yet. The Paid Apps agreement, banking and tax must be done.
 
 ## 5. TestFlight (You)
@@ -67,16 +67,17 @@ What to try on the phone:
 2. **App Privacy:** Data Not Collected.
 3. **App Accessibility:** optional for now; answers are in `listing.md`.
 4. **App Compliance:** see `listing.md`; DSA trader status is your call.
-5. **Header and Search Results:** `art/header.png` and `art/search.png` (or
-   `art/universal.png` for both). Check them in Preview.
+5. **Header and Search Results:** from `upload/Header and Search Results/`,
+   `header.png` and `search-results.png` (or `universal.png` for both). Check
+   them in Preview.
 6. **Pricing and Availability:** Free. Leave out China mainland and Vietnam
    unless you have a game license there.
 
 ## 7. The version page and submit (You)
 
-1. **Screenshots:** `screenshots/iphone-6.1in-2556x1179/` into the 6.1" iPhone
-   slot, optionally `iphone-6.9in-2868x1320/` into 6.9", and
-   `ipad-13in-2752x2064/` into 13" iPad, in file order 1–8.
+1. **Screenshots:** from `upload/`, `Screenshots iPhone 6.1in` into the 6.1"
+   iPhone slot, optionally `Screenshots iPhone 6.9in` into 6.9", and
+   `Screenshots iPad 13in` into 13" iPad, in file order 1–8.
 2. **Promotional text, description, keywords, support URL, copyright:** from
    `listing.md`.
 3. **Build:** the TestFlight build.
@@ -99,5 +100,6 @@ AppStore/make_assets.sh
 ```
 
 It builds a debug build, runs it in the simulator with `-marketing YES`, and
-copies everything into `AppStore/screenshots/` and `AppStore/art/`. The shots,
+copies everything into `AppStore/upload/`, a folder per App Store Connect
+section. The shots,
 captions and sizes are in `skate/Marketing.swift`.

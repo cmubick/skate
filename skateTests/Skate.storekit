@@ -23,7 +23,7 @@
       "internalID": "7100000002",
       "localizations": [
         {
-          "description": "A small thank-you.",
+          "description": "A small thank-you to Tuesday Games.",
           "displayName": "Small tip",
           "locale": "en_US"
         }
@@ -38,13 +38,13 @@
       "internalID": "7100000003",
       "localizations": [
         {
-          "description": "A generous thank-you.",
-          "displayName": "Medium tip",
+          "description": "A generous thank-you to Tuesday Games.",
+          "displayName": "Generous tip",
           "locale": "en_US"
         }
       ],
       "productID": "skate.tip.medium",
-      "referenceName": "Medium tip",
+      "referenceName": "Generous tip",
       "type": "Consumable"
     },
     {
@@ -53,13 +53,13 @@
       "internalID": "7100000004",
       "localizations": [
         {
-          "description": "A very generous thank-you.",
-          "displayName": "Large tip",
+          "description": "A very generous thank-you to Tuesday Games.",
+          "displayName": "Big tip",
           "locale": "en_US"
         }
       ],
       "productID": "skate.tip.large",
-      "referenceName": "Large tip",
+      "referenceName": "Big tip",
       "type": "Consumable"
     }
   ],

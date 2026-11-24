@@ -870,3 +870,25 @@ struct GapFairnessTests {
         }
     }
 }
+
+struct MusicTests {
+    @Test func everySongIsWrittenRight() {
+        for song in Songs.all {
+            #expect(Chiptune.problems(in: song).isEmpty, "\(Chiptune.problems(in: song))")
+            #expect(song.sections.count >= 2, "\(song.name) needs an intro and a loop")
+        }
+    }
+
+    @Test func everyPortlandSpotHasItsOwnSong() {
+        let songs = City.portland.levels.compactMap { Music.song(for: $0)?.name }
+        #expect(songs.count == City.portland.levels.count)
+        #expect(Set(songs).count == songs.count)
+        #expect(Music.song(for: .tutorial) != nil)
+    }
+
+    @Test func notesHaveTheRightPitch() {
+        #expect(abs(Chiptune.frequency("A4")! - 440) < 0.01)
+        #expect(abs(Chiptune.frequency("C#5")! - 554.37) < 0.01)
+        #expect(Chiptune.frequency("H2") == nil)
+    }
+}

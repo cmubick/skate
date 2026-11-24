@@ -115,6 +115,8 @@ class GameViewController: UIViewController, SceneRouter {
 
     func showMenu(_ page: MenuScene.Page) {
         guard let layout else { return }
+        Music.shared.stop()
+        Sounds.shared.stopAllLoops()
         if let menu = currentScene as? MenuScene {
             menu.show(page)
         } else {

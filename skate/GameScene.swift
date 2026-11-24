@@ -47,6 +47,9 @@ final class GameScene: PixelScene {
     private var cameraAnchor: CGFloat = 0.3
     /// True while the grind rumble and sound are on, so they can't be left running.
     private var grindFeedbackOn = false
+    /// The grind sound looping now: metal, concrete or a boardslide.
+    private var grindLoop: Sound?
+    private var rollingSoundOn = false
 
     // The HUD, drawn over everything and fixed to the screen.
     private let scoreLabel = PixelLabel(anchor: CGPoint(x: 0, y: 1))
@@ -91,6 +94,9 @@ final class GameScene: PixelScene {
     private let overlay = SKNode()
     private var overlayButtons: [PixelButton] = []
     private var overlayTouchStart: CGPoint?
+    /// The music and sound switches on the goals and pause screens.
+    private var musicToggle: PixelButton?
+    private var soundToggle: PixelButton?
     private var isOnBreak = false
 
     init(size: CGSize, level: Level, city: City, outfit: Outfit) {
@@ -199,15 +205,24 @@ final class GameScene: PixelScene {
         cam.addChild(overlay)
 
         Haptics.prepare()
-        _ = Sounds.shared
+        Sounds.shared.prepare()
         updateLettersLabel()
         layoutScene()
         render()
+        playMusic()
         if !level.goals.isEmpty { showIntro() }
         showTutorialStep()
 
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive),
                                                name: UIApplication.willResignActiveNotification, object: nil)
+    }
+
+    /// The spot's song, from the top. (Not while rendering store screenshots.)
+    private func playMusic() {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "marketing") { return }
+        #endif
+        if let song = Music.song(for: level) { Music.shared.play(song) }
     }
 
     @objc private func appWillResignActive() {
@@ -327,19 +342,39 @@ final class GameScene: PixelScene {
         sparkTimer += dt
         // A safety net: whatever happened, no rumble or grind sound unless on a rail.
         if grindFeedbackOn, !run.isGrinding { stopGrindFeedback() }
+        setRollingSound(run.state == .rolling && !run.isFinished)
         render(dt: dt)
     }
 
     private func startGrindFeedback() {
         grindFeedbackOn = true
         Haptics.startGrind()
-        Sounds.shared.startLoop(.grind)
+        Sounds.shared.play(.lock)
+        playGrindLoop()
+    }
+
+    /// Metal on rails, a rasp on concrete and wood, a scrape for a boardslide.
+    private func playGrindLoop() {
+        guard case .grinding(let index, let trick) = run.state else { return }
+        let sound: Sound = trick == .boardslide ? .slide : level.features[index].kind == .rail ? .grind : .scrape
+        guard sound != grindLoop else { return }
+        if let grindLoop { Sounds.shared.stopLoop(grindLoop) }
+        grindLoop = sound
+        Sounds.shared.startLoop(sound)
+    }
+
+    /// Wheels on the pavement, while rolling.
+    private func setRollingSound(_ on: Bool) {
+        guard on != rollingSoundOn else { return }
+        rollingSoundOn = on
+        if on { Sounds.shared.startLoop(.roll) } else { Sounds.shared.stopLoop(.roll) }
     }
 
     private func stopGrindFeedback() {
         grindFeedbackOn = false
         Haptics.stopGrind()
-        Sounds.shared.stopLoop(.grind)
+        if let grindLoop { Sounds.shared.stopLoop(grindLoop) }
+        grindLoop = nil
     }
 
     // MARK: Pause and results
@@ -357,6 +392,8 @@ final class GameScene: PixelScene {
 
     /// A title across the top, one or two columns of lines, and buttons along the bottom.
     private func showOverlay(title: String, columns: [[OverlayLine]], buttons: [(String, PixelColor, () -> Void)]) {
+        Music.shared.setDucked(true)
+        setRollingSound(false)
         overlay.removeAllChildren()
         overlayButtons.removeAll()
         setHudHidden(true)
@@ -458,6 +495,32 @@ final class GameScene: PixelScene {
             ("GO", PixelColor(0x00A844), { [weak self] in self?.closePauseMenu() }),
             ("SPOTS", PixelColor(0x24308C), { [weak self] in self?.leave() }),
         ])
+        addAudioToggles()
+    }
+
+    /// Music and sound on/off, in the top-left corner of the overlay.
+    private func addAudioToggles() {
+        let safe = safeFrame.offsetBy(dx: -size.width / 2, dy: -size.height / 2)
+        let music = PixelButton(icon: UIArt.musicIcon(on: Music.shared.isOn)) { [weak self] in
+            Music.shared.isOn.toggle()
+            self?.refreshAudioToggles()
+        }
+        let sound = PixelButton(icon: UIArt.soundIcon(on: !Sounds.shared.isMuted)) { [weak self] in
+            Sounds.shared.isMuted.toggle()
+            self?.refreshAudioToggles()
+        }
+        for (index, toggle) in [music, sound].enumerated() {
+            toggle.position = CGPoint(x: (safe.minX + 9 + CGFloat(index * 16)).rounded(), y: (safe.maxY - 8).rounded())
+            overlay.addChild(toggle)
+            overlayButtons.append(toggle)
+        }
+        musicToggle = music
+        soundToggle = sound
+    }
+
+    private func refreshAudioToggles() {
+        musicToggle?.setIcon(UIArt.musicIcon(on: Music.shared.isOn))
+        soundToggle?.setIcon(UIArt.soundIcon(on: !Sounds.shared.isMuted))
     }
 
     private func openPauseMenu() {
@@ -470,6 +533,7 @@ final class GameScene: PixelScene {
             ("RESUME", PixelColor(0x00A844), { [weak self] in self?.closePauseMenu() }),
             ("QUIT", PixelColor(0x24308C), { [weak self] in self?.leave() }),
         ])
+        addAudioToggles()
     }
 
     /// The HUD steps aside while a menu or the results are up.
@@ -480,6 +544,7 @@ final class GameScene: PixelScene {
     }
 
     private func closePauseMenu() {
+        Music.shared.setDucked(false)
         isOnBreak = false
         setHudHidden(false)
         overlay.removeAllChildren()
@@ -574,7 +639,7 @@ final class GameScene: PixelScene {
         Sounds.shared.play(.pop)
         show.run(.sequence([.wait(forDuration: rise), .run { [weak self, weak show] in
             guard let self, let show else { return }
-            Sounds.shared.play(.perfect)
+            Sounds.shared.play(.burst)
             Haptics.finish()
             self.spellInFireworks(self.city.name, in: show, center: CGPoint(x: 0, y: 8))
         }]))
@@ -638,7 +703,7 @@ final class GameScene: PixelScene {
                 let x = (side * CGFloat.random(in: 20...(self.size.width / 2 - 12))).rounded()
                 let y = CGFloat.random(in: 0...(self.size.height / 2 - 14)).rounded()
                 self.launchFirework(in: show, to: CGPoint(x: x, y: y), color: color)
-                if burst % 3 == 0 { Sounds.shared.play(.pop) }
+                if burst % 2 == 0 { Sounds.shared.play(.burst) }
             },
             .wait(forDuration: 0.45, withRange: 0.3),
         ])))
@@ -735,7 +800,7 @@ final class GameScene: PixelScene {
         for goal in goalTracker.update(run: run, events: events, dt: dt) {
             progress.complete(goal: goal, at: level)
             goalsThisRun.insert(goal.id)
-            Sounds.shared.play(.letter)
+            Sounds.shared.play(.goal)
             Haptics.land(perfect: true)
             showBanner(goal.text, title: "GOAL!", color: Palette.yellow)
         }
@@ -848,16 +913,25 @@ final class GameScene: PixelScene {
             case .ollie(let charged):
                 Sounds.shared.play(.pop)
                 Haptics.pop(charged: charged)
-            case .popOff, .launched:
+            case .popOff:
                 Sounds.shared.play(.pop)
                 Haptics.pop(charged: false)
-            case .trickStarted:
-                Sounds.shared.play(.trick)
+            case .launched:
+                Sounds.shared.play(.launch)
+                Haptics.pop(charged: true)
+            case .trickStarted(let trick):
+                switch trick {
+                case .kickflip, .heelflip: Sounds.shared.play(.flip)
+                case .shoveIt, .threeSixtyFlip: Sounds.shared.play(.spin)
+                case .grab: Sounds.shared.play(.grab)
+                default: Sounds.shared.play(.trick)
+                }
             case .grindStarted:
                 startGrindFeedback()
             case .grindSwitched:
                 Haptics.tick()
-                Sounds.shared.play(.trick)
+                Sounds.shared.play(.lock)
+                playGrindLoop()
             case .grindEnded:
                 stopGrindFeedback()
             case .landed(let perfect):
@@ -870,13 +944,16 @@ final class GameScene: PixelScene {
             case .banked(let points):
                 checkCallout(total: points)
                 announcedTier = 0
-                if points > Int(Trick.ollie.basePoints) { popup("+\(points)", color: Palette.white, rise: 0) }
+                if points > Int(Trick.ollie.basePoints) {
+                    Sounds.shared.play(.bank)
+                    popup("+\(points)", color: Palette.white, rise: 0)
+                }
             case .gap(let name, let points):
-                Sounds.shared.play(.perfect)
+                Sounds.shared.play(.gap)
                 Haptics.land(perfect: true)
                 showBanner("+\(points)", title: name, color: Palette.orange)
             case .bail(let reason):
-                Sounds.shared.play(.bail)
+                Sounds.shared.play(reason == .fell ? .fall : .bail)
                 Haptics.bail()
                 shakeLeft = 0.3
                 announcedTier = 0
@@ -885,6 +962,7 @@ final class GameScene: PixelScene {
                 Sounds.shared.play(.lane)
                 Haptics.tick()
             case .cleared(let style, _, let points):
+                Sounds.shared.play(.clear)
                 popup("\(style.name) +\(points)", color: Palette.yellow, rise: 16)
             case .letter(let index, let letter):
                 Sounds.shared.play(.letter)

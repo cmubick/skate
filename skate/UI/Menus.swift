@@ -54,6 +54,8 @@ final class PixelButton: SKNode {
     }
     private let box = SKSpriteNode()
     private let label = PixelLabel(anchor: .zero)
+    /// A picture instead of text, for the music and sound buttons.
+    private let iconNode = SKSpriteNode()
     private let minWidth: Int
     private let color: PixelColor
 
@@ -71,7 +73,22 @@ final class PixelButton: SKNode {
         addChild(box)
         label.zPosition = 1
         addChild(label)
+        iconNode.anchorPoint = .zero
+        iconNode.zPosition = 1
+        addChild(iconNode)
         label.text = text
+        redraw()
+    }
+
+    /// A square button with a picture on it.
+    convenience init(icon: SKTexture, color: PixelColor = PixelColor(0x24308C), action: @escaping () -> Void) {
+        self.init("", color: color, action: action)
+        setIcon(icon)
+    }
+
+    func setIcon(_ icon: SKTexture) {
+        iconNode.texture = icon
+        iconNode.size = icon.size()
         redraw()
     }
 
@@ -85,13 +102,17 @@ final class PixelButton: SKNode {
 
     private func redraw() {
         // Everything on whole pixels, so the text stays sharp.
-        let textWidth = PixelFont.width(of: label.text)
-        let width = max(minWidth, textWidth + 8)
+        let iconWidth = iconNode.texture == nil ? 0 : Int(iconNode.size.width)
+        let textWidth = iconWidth > 0 ? iconWidth : PixelFont.width(of: label.text)
+        let width = max(minWidth, textWidth + (iconWidth > 0 ? 6 : 8))
         let height = PixelFont.glyphHeight + 6
         box.texture = UIArt.box(width: width, height: height, fill: color)
         box.size = CGSize(width: width, height: height)
         box.position = CGPoint(x: -(width / 2), y: -(height / 2))
         label.position = CGPoint(x: -(width / 2) + (width - textWidth) / 2, y: -(height / 2) + 2)
+        label.isHidden = iconWidth > 0 || label.text.isEmpty
+        iconNode.position = CGPoint(x: -(width / 2) + (width - iconWidth) / 2,
+                                    y: -(height / 2) + (height - Int(iconNode.size.height)) / 2)
     }
 
     /// True if the point is on the button, with a little extra room for fingers.
@@ -118,6 +139,50 @@ enum UIArt {
             "gooooooog",
             ".ggggggg.",
         ], colors: ["l": Palette.lightGrey, "g": PixelColor(0x9CD0F8), "o": Palette.yellow]).texture()
+    }
+
+    /// A music note, crossed out in red when music is off.
+    static func musicIcon(on: Bool) -> SKTexture {
+        icon([
+            "....###",
+            "....#.#",
+            "....#.#",
+            "....#..",
+            "..###..",
+            ".####..",
+            "..##...",
+        ], on: on)
+    }
+
+    /// A speaker with sound coming out, crossed out in red when sound is off.
+    static func soundIcon(on: Bool) -> SKTexture {
+        icon(on ? [
+            "...#...",
+            "..##.#.",
+            "####..#",
+            "####.##",
+            "####..#",
+            "..##.#.",
+            "...#...",
+        ] : [
+            "...#...",
+            "..##...",
+            "####...",
+            "####...",
+            "####...",
+            "..##...",
+            "...#...",
+        ], on: on)
+    }
+
+    private static func icon(_ rows: [String], on: Bool) -> SKTexture {
+        var canvas = PixelCanvas(width: 7, height: 7)
+        canvas.draw(PixelSprite(rows, colors: ["#": on ? Palette.white : PixelColor(0x9C9C9C)]), x: 0, y: 0)
+        if !on {
+            // A red slash from corner to corner.
+            for i in 0..<7 { canvas.set(i, 6 - i, Palette.red) }
+        }
+        return canvas.texture()
     }
 
     /// A little padlock, for things in the full game.
@@ -339,6 +404,21 @@ final class MenuScene: PixelScene {
         button("SKATER", at: CGPoint(x: buttonX, y: 10), minWidth: 64) { [weak self] in
             self?.show(.builder)
         }
+        addAudioToggles(at: CGPoint(x: safe.minX + 9, y: safe.maxY - 8))
+    }
+
+    /// Music and sound on/off, side by side, starting at `point` (the first one's center).
+    private func addAudioToggles(at point: CGPoint) {
+        for (index, isMusic) in [true, false].enumerated() {
+            let on = isMusic ? Music.shared.isOn : !Sounds.shared.isMuted
+            let toggle = PixelButton(icon: isMusic ? UIArt.musicIcon(on: on) : UIArt.soundIcon(on: on)) { [weak self] in
+                if isMusic { Music.shared.isOn.toggle() } else { Sounds.shared.isMuted.toggle() }
+                self?.layoutScene()
+            }
+            toggle.position = CGPoint(x: (point.x + CGFloat(index * 16)).rounded(), y: point.y.rounded())
+            content.addChild(toggle)
+            buttons.append(toggle)
+        }
     }
 
     private func buildCities() {
@@ -423,7 +503,7 @@ final class MenuScene: PixelScene {
 
     /// The three tips, always shown. Prices come from the App Store once it answers;
     /// until then they show the usual US prices.
-    static let tipLabels: [(name: String, price: String)] = [("SMALL", "$0.99"), ("MEDIUM", "$2.99"), ("LARGE", "$4.99")]
+    static let tipLabels: [(name: String, price: String)] = [("SMALL", "$0.99"), ("GENEROUS", "$2.99"), ("BIG", "$4.99")]
 
     private func buildTips(back: Page) {
         let safe = safeFrame
