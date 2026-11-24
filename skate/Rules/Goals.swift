@@ -14,7 +14,8 @@ nonisolated struct Goal: Equatable, Sendable {
         case score(Int)
         /// Bank a single combo worth this much.
         case combo(Int)
-        /// Find every letter hidden at this spot in one run.
+        /// Find every letter hidden at this spot. Letters found on earlier runs count:
+        /// you never have to find one again.
         case letters
         /// Get all the way over one of these, doing at least this hard a trick
         /// (see `Trick.clearStyle`: 1 is any jump, 2 a flip, 3 a 360 flip).
@@ -45,11 +46,21 @@ nonisolated struct GoalTracker: Sendable {
     private var clearCounts: [FeatureStyle: Int] = [:]
     private var grinding: (feature: Int, seconds: Double)?
     private var bailed = false
+    /// The city's letters found on earlier runs, by their place in its name.
+    private let lettersFoundBefore: Set<Int>
 
     /// `alreadyMet`: goals done on earlier runs, which don't need announcing again.
-    init(goals: [Goal], alreadyMet: Set<String> = []) {
+    /// `lettersFoundBefore`: the city's letters found on earlier runs.
+    init(goals: [Goal], alreadyMet: Set<String> = [], lettersFoundBefore: Set<Int> = []) {
         self.goals = goals
         met = alreadyMet
+        self.lettersFoundBefore = lettersFoundBefore
+    }
+
+    /// True if every letter at this spot has been found, on this run or any before.
+    static func allLettersFound(at level: Level, found: Set<Int>) -> Bool {
+        let here = Set(level.letters.map(\.index))
+        return !here.isEmpty && here.isSubset(of: found)
     }
 
     /// Call after every step of the run, with what happened in it. Returns goals just met.
@@ -86,8 +97,7 @@ nonisolated struct GoalTracker: Sendable {
             case .score(let target): done = run.score >= target
             case .combo(let target): done = bankedCombo >= target
             case .letters:
-                let here = Set(run.level.letters.map(\.index))
-                done = !here.isEmpty && here.isSubset(of: run.lettersFound)
+                done = Self.allLettersFound(at: run.level, found: lettersFoundBefore.union(run.lettersFound))
             case .clear(let style, let trickStyle):
                 done = clears.contains { $0.0 == style && $0.1 >= trickStyle }
             case .clears(let style, let count): done = clearCounts[style, default: 0] >= count

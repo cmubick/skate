@@ -64,6 +64,21 @@ final class Progress {
         return true
     }
 
+    /// Marks done any letters goal whose letters were all found, even across different
+    /// runs. Saves from before that counted made you find them all in one run.
+    func completeEarnedLetterGoals(in city: City) {
+        let found = letters(in: city)
+        for level in city.levels where GoalTracker.allLettersFound(at: level, found: found) {
+            for goal in level.goals where goal.kind == .letters { complete(goal: goal, at: level) }
+        }
+    }
+
+    /// True once every goal at every spot in the city is done.
+    func allGoalsDone(in city: City) -> Bool {
+        city.levels.allSatisfy { level in level.goals.allSatisfy { goalsDone(at: level).contains($0.id) } }
+            && city.levels.contains { !$0.goals.isEmpty }
+    }
+
     func bestScore(at level: Level) -> Int {
         defaults.integer(forKey: "bestScore.\(level.id)")
     }

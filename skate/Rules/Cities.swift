@@ -80,8 +80,8 @@ nonisolated extension Level {
         letter(0, .back, at: 488, height: 28),
         letter(1, .middle, at: 1310, height: 6),
     ], showsHints: true, gaps: [
-        Gap(name: "PIONEER GAP", points: 500, kind: .transfer(.back, from: 1536, to: 1624)),
-        Gap(name: "DOUBLE CONE", points: 300, kind: .over(.middle, from: 1216, to: 1245)),
+        Gap(name: "PIONEER GAP", points: 500, kind: .transfer(.back, from: 1536, to: 1624), hint: "RAIL TO RAIL"),
+        Gap(name: "DOUBLE CONE", points: 300, kind: .over(.middle, from: 1216, to: 1245), hint: "2 CONES 1 JUMP"),
     ], goals: [
         Goal(id: "downtown.score", text: "SCORE 2000", kind: .score(2000)),
         Goal(id: "downtown.letters", text: "FIND 2 LETTERS", kind: .letters),
@@ -95,14 +95,15 @@ nonisolated extension Level {
         .tracks(.middle, at: 200, length: 260),
         .pedestrian(.back, at: 420),
         // Short enough to clear with a held ollie: the FOUNTAIN GAP.
-        .fountain(.back, at: 560, length: 56),
+        .fountain(.back, at: 560, length: 44),
         .pedestrian(.front, at: 640),
         // The first train comes down the middle lane: get out of its way.
         .train(.middle, at: 980),
         .tracks(.middle, at: 1240, length: 280),
         .pedestrian(.back, at: 1320),
         .pedestrian(.front, at: 1420),
-        .fountain(.back, at: 1600, length: 80),
+        // The long basin: room for the GRIND FOUNTAIN goal, with R floating over it.
+        .fountain(.back, at: 1600, length: 132),
         .train(.middle, at: 2000),
         .pedestrian(.front, at: 2050),
         .tracks(.middle, at: 2250, length: 320),
@@ -113,12 +114,12 @@ nonisolated extension Level {
         letter(2, .back, at: 1640, height: 26),
         letter(3, .front, at: 2690, height: 26),
     ], gaps: [
-        Gap(name: "FOUNTAIN GAP", points: 600, kind: .over(.back, from: 560, to: 560)),
+        Gap(name: "FOUNTAIN GAP", points: 600, kind: .over(.back, from: 560, to: 560), hint: "CLEAR FOUNTAIN"),
     ], goals: [
         Goal(id: "skidmore.score", text: "SCORE 3000", kind: .score(3000)),
         Goal(id: "skidmore.letters", text: "FIND 2 LETTERS", kind: .letters),
         Goal(id: "skidmore.gap", text: "FOUNTAIN GAP", kind: .gap("FOUNTAIN GAP")),
-        Goal(id: "skidmore.grind", text: "GRIND FOUNTAIN", kind: .grind(.fountain, seconds: 1.5)),
+        Goal(id: "skidmore.grind", text: "GRIND FOUNTAIN", kind: .grind(.fountain, seconds: 1.0)),
         Goal(id: "skidmore.walker", text: "OLLIE A WALKER", kind: .clear(.pedestrian)),
     ])
 
@@ -149,7 +150,7 @@ nonisolated extension Level {
     ], letters: [
         letter(4, .back, at: 1642, height: 30),
     ], gaps: [
-        Gap(name: "BURNSIDE GAP", points: 500, kind: .transfer(.back, from: 1560, to: 1660)),
+        Gap(name: "BURNSIDE GAP", points: 500, kind: .transfer(.back, from: 1560, to: 1660), hint: "RAIL TO RAIL"),
     ], goals: [
         Goal(id: "burnside.score", text: "SCORE 4000", kind: .score(4000)),
         Goal(id: "burnside.letters", text: "FIND THE LETTER", kind: .letters),
@@ -184,7 +185,7 @@ nonisolated extension Level {
     ], letters: [
         letter(5, .back, at: 1500, height: 24),
     ], gaps: [
-        Gap(name: "ST JOHNS GAP", points: 500, kind: .transfer(.back, from: 2050, to: 2120)),
+        Gap(name: "ST JOHNS GAP", points: 500, kind: .transfer(.back, from: 2050, to: 2120), hint: "BENCH TO BENCH"),
     ], goals: [
         Goal(id: "north.score", text: "SCORE 3000", kind: .score(3000)),
         Goal(id: "north.letters", text: "FIND THE LETTER", kind: .letters),
@@ -211,8 +212,9 @@ nonisolated extension Level {
         .dog(.front, at: 1900),
         .hole(.front, at: 2050),
         .runner(.middle, at: 2200),
+        // The ESPLANADE GAP: the bench and the manhole right after it, in one held ollie.
         .bench(.back, at: 2300),
-        .hole(.back, at: 2350),
+        .hole(.back, at: 2338),
         .biker(.front, at: 2500),
         .handrail(.back, at: 2600, length: 140),
         .dog(.middle, at: 2800),
@@ -220,7 +222,7 @@ nonisolated extension Level {
     ], letters: [
         letter(6, .back, at: 1800, height: 30),
     ], gaps: [
-        Gap(name: "ESPLANADE GAP", points: 400, kind: .over(.back, from: 2300, to: 2350)),
+        Gap(name: "ESPLANADE GAP", points: 400, kind: .over(.back, from: 2300, to: 2338), hint: "BENCH+MANHOLE"),
     ], goals: [
         Goal(id: "waterfront.score", text: "SCORE 4000", kind: .score(4000)),
         Goal(id: "waterfront.letters", text: "FIND THE LETTER", kind: .letters),
@@ -241,7 +243,8 @@ nonisolated extension Level {
         .curb(.front, at: 1050, length: 240),
         .zooTrain(.back, at: 1150),
         .barrier(.middle, at: 1200),
-        .miniBike(.back, at: 1300),
+        // In the front lane: in the back it rode through the SUNSET GAP just as you got there.
+        .miniBike(.front, at: 1300),
         .penguin(.front, at: 1500),
         .goat(.back, at: 1560),
         .barrier(.back, at: 1750, length: 48),
@@ -260,7 +263,7 @@ nonisolated extension Level {
     ], letters: [
         letter(7, .middle, at: 3190, height: 26),
     ], acceleration: 4, maxSpeed: 170, gaps: [
-        Gap(name: "SUNSET GAP", points: 600, kind: .transfer(.back, from: 1750, to: 1830)),
+        Gap(name: "SUNSET GAP", points: 600, kind: .transfer(.back, from: 1750, to: 1830), hint: "GRIND 2 BARRIERS"),
     ], goals: [
         Goal(id: "zoobomb.score", text: "SCORE 5000", kind: .score(5000)),
         Goal(id: "zoobomb.letters", text: "FIND THE LETTER", kind: .letters),

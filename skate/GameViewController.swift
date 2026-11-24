@@ -27,8 +27,11 @@ class GameViewController: UIViewController, SceneRouter {
             (self?.currentScene as? MenuScene)?.layoutScene()
         }
         Store.shared.start()
+        // Letters goals done across several runs count (older saves needed one run).
+        City.all.forEach { Progress.shared.completeEarnedLetterGoals(in: $0) }
         #if DEBUG
-        skView.showsFPS = true
+        // `-hideFPS YES` on the launch arguments keeps the counter off (for screenshots).
+        skView.showsFPS = !UserDefaults.standard.bool(forKey: "hideFPS")
         #endif
     }
 
@@ -42,7 +45,27 @@ class GameViewController: UIViewController, SceneRouter {
             if scene.size != layout.gameSize { scene.size = layout.gameSize }
             configure(scene)
         } else {
-            showMenu(.title)
+            showMenu(Self.startPage)
+            #if DEBUG
+            // `-marketing YES` renders the App Store screenshots and art (see Marketing.swift).
+            if UserDefaults.standard.bool(forKey: "marketing") {
+                Task { await Marketing.exportAll(in: view) }
+            }
+            // `-fireworks YES` shows the all-goals fireworks on a spot's results screen.
+            if UserDefaults.standard.bool(forKey: "fireworks") {
+                play(.downtown, in: .portland)
+                Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    (self.currentScene as? GameScene)?.showFireworksForTesting()
+                }
+            }
+            // `-level waterfront` (a spot's id) opens straight on that spot's goals.
+            if let id = UserDefaults.standard.string(forKey: "level"),
+               let city = City.all.first(where: { $0.levels.contains { $0.id == id } }),
+               let level = city.levels.first(where: { $0.id == id }) {
+                play(level, in: city)
+            }
+            #endif
         }
     }
 
@@ -68,6 +91,24 @@ class GameViewController: UIViewController, SceneRouter {
             skView.presentScene(scene, transition: .fade(with: .black, duration: 0.2))
         }
         currentScene = scene
+    }
+
+    /// The menu page the app opens on: the title, or in debug builds whatever
+    /// `-page cities|spots|builder|tips|fullgame` on the launch arguments asks for.
+    /// (`-level <spot id>` goes on into a spot.)
+    private static var startPage: MenuScene.Page {
+        #if DEBUG
+        switch UserDefaults.standard.string(forKey: "page") {
+        case "cities": return .cities
+        case "spots": return .spots(.portland)
+        case "builder": return .builder
+        case "tips": return .tips(back: .title)
+        case "fullgame": return .fullGame
+        default: return .title
+        }
+        #else
+        return .title
+        #endif
     }
 
     // MARK: SceneRouter

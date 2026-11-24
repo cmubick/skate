@@ -686,3 +686,39 @@ nonisolated struct Run: Sendable {
         }
     }
 }
+
+#if DEBUG
+/// A moment in a run, set up by hand: for marketing screenshots (see `Marketing.swift`).
+nonisolated struct RunStaging: Sendable {
+    var x: CGFloat
+    var lane: Lane = .middle
+    var height: CGFloat = 0
+    var state: SkaterState = .rolling
+    var airTrick: AirTrick?
+    /// The tricks on the combo, oldest first.
+    var combo: [Trick] = []
+    var comboBonus: Double = 0
+    var score = 0
+    var lettersFound: Set<Int> = []
+}
+
+nonisolated extension Run {
+    /// Puts the run straight into a staged moment. Debug builds only.
+    mutating func stage(_ staging: RunStaging) {
+        x = staging.x
+        lane = staging.lane
+        drawnLane = CGFloat(staging.lane.rawValue)
+        height = staging.height
+        verticalSpeed = 0
+        state = staging.state
+        airTrick = staging.airTrick
+        var combo = Combo()
+        staging.combo.forEach { combo.add($0) }
+        combo.addBonus(staging.comboBonus)
+        self.combo = combo
+        comboLinkLeft = nil
+        score = staging.score
+        lettersFound = staging.lettersFound
+    }
+}
+#endif

@@ -12,6 +12,8 @@ The design doc is `skate-design-v0.1.md` (exported from the Claude Doc, which is
 - **Clearing things scores.** Getting all the way over something in the air adds points to the combo: 20 + 3 per pixel of height + 1 per pixel of length, times 1.5 and up for moving things (plus 1x per 100 px/s), times the hardest trick done on the way over (grab 1.5, kickflip/heelflip/shove-it 2, 360 flip 3). A cone is 65, a moving car 235, a manhole 35; low curbs and tracks nothing. A popup names it ("CONE +65"). The points ride the combo multiplier and are lost on a bail.
 - **Goals:** five per spot (score, the spot's letters ("FIND THE LETTER" or "FIND 2 LETTERS"), the spot's named gap, a trick over something, and one more). Listed before every run, announced with a banner the moment you get one, crossed out on the pause menu and the finish screen, and saved. The spot list shows a dot per goal. No clock yet: the finish line is the time limit.
 - **Named gaps,** at least one per spot, worth a fat bonus on the combo: PIONEER GAP and DOUBLE CONE (Downtown), FOUNTAIN GAP (Skidmore), BURNSIDE GAP, ST JOHNS GAP, ESPLANADE GAP, SUNSET GAP (Zoo Bomb). A gap is either "over everything from here to there in one jump" or "grind this, land a grind on that".
+  - 2026-11-23: ESPLANADE GAP (bench + manhole) and FOUNTAIN GAP were close to impossible: at the starting speed a held ollie had a 0–2 pixel window. The manhole moved in from x 2350 to 2338 and the first Skidmore fountain shrank from 56 to 44 long. A test now keeps every over gap doable with a held ollie at the starting speed.
+  - 2026-11-23: nothing in the game said what a gap *is*, so each gap now has a short hint (RAIL TO RAIL, BENCH+MANHOLE, GRIND 2 BARRIERS...) shown in grey beside its goal on the goals and pause screens until it's done. Not on the results screen, where the goals share half the width.
 - **Combo meter:** a clean landing keeps the combo open for 1.2 s (a bar under the combo). Another trick in that time keeps it going; a plain ollie doesn't count, so landing with nothing new, or letting the bar run out, banks it. Bailing loses it.
 - **Big combos** get a callout (SICK! 1000, GNARLY! 2500, RADICAL! 5000, LEGENDARY! 10000). Bails shake the screen. Slow motion is built but switched off (`slowMotionOn` in `GameScene.swift`): it felt jarring.
 - **Quarter pipes** (two at Burnside): ride up one and fly off the lip about 46 px high.
@@ -65,3 +67,18 @@ From the design doc: one real spot (Downtown square, final art style, letters, s
 2. Which cities after Portland, and whether both games add cities in lockstep.
 3. Whether the free tier (3 spots) and $4.99 unlock sit right next to the other games' prices.
 4. Manuals: swipe down on landing is close to the lane-switch swipe. Leaning toward cutting them (they're on the cut list).
+
+- **Boardslides** (2026-11-23): they always worked (swipe down or sideways on a rail), but the only sign was the board squashed under the same crouch, so nobody noticed. Now the board turns across the rail, seen end-on with its wheels hanging, and the skater balances with arms out, wobbling (two frames). The tutorial has a new step: ON RAIL, SWIPE DOWN: SLIDE.
+
+- **GRIND FOUNTAIN was impossible** (2026-11-23): it wanted one 1.5 s grind on a fountain, but the longest fountain (80) gives under 1.1 s even landing right at its start. The middle Skidmore fountain is now a long basin (132) and the goal is 1 s. A test now checks every grind goal against its longest feature at top speed.
+
+- **North Portland food cart signs** (2026-11-23): each cart has a sign on its roof saying what it sells: PIZZA, TACOS, SANDOS, THAI, BURGER, RAMEN, PHO, CREPES, CURRY (`ThemeArt.foodCartSigns`, in turn). The sign font gained C, H, I, U and Z. A test checks each sign fits.
+
+- **SUNSET GAP was blocked** (2026-11-23): the Zoobomber in Zoo Bomb's back lane (x 1300, going 60) rode through the gap's barriers just as you arrived, at the speeds you're likely going (80-95). It's in the front lane now, and a test checks that nothing moving can be in any gap's way.
+
+- **Letters goal counts every letter you've found** (2026-11-23): it used to need all of a spot's letters in one run. Now letters from earlier runs count, and older saves get the goal at launch.
+- **Fireworks for finishing a city** (2026-11-23): the run that completes a city's last goal dims the screen, fires a rocket that bursts into the city's name in sparks, then shows the results ("ALL PORTLAND GOALS!") with fireworks going off behind until you leave.
+- **App Store assets** (2026-11-23): screenshots, header, universal and search art and the tip jar review screenshot are rendered from the game by `AppStore/make_assets.sh` (`skate/Marketing.swift`, debug only). The listing text and form answers are in `AppStore/listing.md`.
+  - Key art is on the waterfront, not Downtown: Portlandia (copyright held by the sculptor) and the White Stag PORTLAND OREGON sign (a City of Portland trademark) are kept out of it.
+  - To decide before release: Portlandia and the White Stag sign in the game itself; Burnside's "SK8 OR DIE"/skull graffiti for a 4+ rating; whether to hide "COMING SOON FOR $4.99" until the full game is on sale.
+  - Maybe: an App Preview video (15-30 s); Accessibility Nutrition Labels (voluntary for now; "Differentiate Without Color Alone" would need found letters marked some way other than color).

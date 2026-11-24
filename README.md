@@ -36,6 +36,16 @@ letters, and work through each spot's goals.
 automatic signing. On another account, change the team in the target's
 **Signing & Capabilities** tab. The bundle ID is `com.tuesdaygames.skate`.
 
+**Debug launch arguments** (Run > Arguments in the scheme, or after the bundle
+ID in `xcrun simctl launch`). They only work in debug builds:
+
+- `-page cities|spots|builder|tips|fullgame` opens on that menu page.
+- `-hideFPS YES` turns the frame counter off, for clean screenshots.
+- `-level <spot id>` (say `-level waterfront`) opens straight on that spot.
+- `-fireworks YES` shows the all-goals fireworks on Downtown, without saving.
+- `-marketing YES` renders the App Store screenshots and art into the app's
+  Documents folder (`AppStore/make_assets.sh` does this for you).
+
 **Tips from Xcode:** the shared scheme's **Run > Options > StoreKit
 Configuration** points at `skateTests/Skate.storekit`. That's a local test store,
 so the tip jar works from Xcode without App Store Connect. See [Store](#store).
@@ -85,10 +95,20 @@ skate/
     Sounds.swift       Chip-style sound effects, generated as WAV data in code.
     Haptics.swift      Taps, thuds and the grind rumble (Core Haptics).
     Store.swift        In-app purchases (StoreKit 2).
+  Marketing.swift      Debug builds only: renders the App Store screenshots and art.
 skateTests/
   skateTests.swift     All the tests.
   Skate.storekit       The local StoreKit test store.
-AppStore/icon/make_icon.swift   Draws the app icon PNGs.
+AppStore/
+  listing.md           Every App Store Connect field, ready to paste, and the
+                       decisions still open.
+  checklist.md         Step by step: support pages, app record, upload, submit.
+  make_assets.sh       Re-renders the screenshots and art from the game.
+  check_safe_areas.swift  Draws Apple's safe areas on the header and search art.
+  screenshots/, art/   The rendered PNGs.
+  ExportOptions.plist, UploadOptions.plist   Settings for exporting or uploading.
+  icon/make_icon.swift Draws the app icon PNGs.
+docs/                  The support and privacy pages (GitHub Pages, from /docs).
 ```
 
 ### The big idea: rules apart from drawing
@@ -141,6 +161,14 @@ concurrency", with the Swift 5 language mode. In practice:
     downtown landmark signs are deliberately low for this.
   - **Second row:** combos, or tips on Downtown.
   - **Third row:** the combo multiplier.
+- **Menus and the safe area:** menus lay out inside `safeFrame` (the screen minus
+  the notch, Dynamic Island and home bar), so how much room they get varies by
+  phone. Anything that might not fit should measure itself and shrink. The spot
+  list (`SpotsList` in `Menus.swift`) does this: it works out its natural size,
+  then scales down in whole screen-pixel steps (`PixelFont.fittingScale`) so it
+  stays sharp. Its letters, goal dots and best scores line up in columns sized
+  to what's in them. Check menu changes on a small phone (iPhone SE) and a
+  Dynamic Island phone.
 
 ## How the art works
 
@@ -152,7 +180,8 @@ buffer, and turned into an `SKTexture` with nearest-neighbour filtering.
   the shirt, `p` the pants and `c` the hat, so one drawing makes every outfit. The
   letter key is at the top of `CharacterArt.swift`.
 - **Backdrops** (`ThemeArt`, `LandmarkArt`): wide strips that repeat sideways and
-  scroll slower than the street (parallax). Each spot has two or three.
+  scroll slower than the street (parallax). Each spot has two or three. North
+  Portland's food carts each get a sign from `ThemeArt.foodCartSigns`.
 - **Fonts:**
   - `PixelFont` is 5x7, for all on-screen text.
   - `SignFont` is 3x5, for lettering inside the art.
@@ -214,8 +243,27 @@ named gaps and goals.
 
   Gaps find their features by lane and starting x, so if you move a feature in a
   gap, move the gap too. A test checks every gap still finds its features.
+
+  Each gap has a `hint` ("BENCH+MANHOLE"). It shows in grey beside the gap's
+  goal on the goals and pause screens until that goal is done. A test checks it
+  fits beside the name on the narrowest screen.
+
+  Another test (`GapFairnessTests`) checks that every "over" gap can be done
+  with a held ollie at the starting speed, with some room for timing. If you
+  make an over gap longer, run it. Over about 66 game pixels, from the first
+  thing's start to the last thing's end, is too far.
+
+  The same suite checks that nothing moving (bikes, goats, trains) can be in
+  a gap's way when you reach it, at any speed from 70 up. Things start moving
+  when you're 200 pixels away, so moving one changes where it ends up.
 - **Goals:** five per spot. Their text must fit half the narrowest screen, which
-  a test checks.
+  a test checks. The letters goal counts letters found on any run, not just this
+  one (`Progress.completeEarnedLetterGoals` also fixes older saves at launch).
+  Finishing a city's last goal sets off fireworks that spell the city's name,
+  then the results come up with more going off behind.
+  A grind goal ("GRIND FOUNTAIN", 1 s) needs a feature of that kind long enough
+  to grind that long at the spot's top speed. A test checks this too, so if you
+  shorten a feature or raise a goal's seconds, run it.
 - **Look:** a new spot needs a `Theme` case and a look in `ThemeArt.look(for:)`.
 
 ### Scoring, in short
@@ -244,7 +292,11 @@ named gaps and goals.
   - swipe right: heelflip
   - swipe down: shove-it
   - swipe up: 360 flip
-- **Grinds** lock on when you land on a rail or ledge. Tap to hop off.
+- **Grinds** lock on when you land on a rail or ledge (a 50-50). On the rail:
+  - tap: hop off
+  - swipe up: ollie out into the lane above
+  - swipe down or sideways: switch to a boardslide, and back. The board turns
+    across the rail and the skater holds their arms out, wobbling.
 - **After a bail,** an up or down swipe gets up in another lane.
 
 ---
@@ -347,9 +399,15 @@ there at all.
 
   If something breaks after an OS update, look at `Store.swift`, `Haptics.swift`
   and `Sounds.swift` first.
-- **App Store listing:** there's no store listing, privacy policy page or support
-  page in this repo yet. The other Tuesday Games apps (Mahjong, Sevens) have
-  `AppStore/` and `docs/` folders to copy when it's time to ship.
+- **App Store listing:** `AppStore/listing.md` has every field and
+  `AppStore/checklist.md` the steps. The support and privacy pages are in
+  `docs/`, served by GitHub Pages at `https://cmubick.github.io/skate/`.
+- **Screenshots and store art** come from the game itself: `AppStore/make_assets.sh`
+  runs a debug build with `-marketing YES`, which stages moments in real spots
+  (`Run.stage`, `GameScene.stageForMarketing`), captures them at one pixel per
+  game pixel and scales them up by whole numbers to Apple's exact sizes. Change
+  shots or captions in `skate/Marketing.swift`. If the game's look changes,
+  re-run it.
 - **The privacy manifest** (`skate/PrivacyInfo.xcprivacy`) declares UserDefaults
   use. Update it if you add tracking, analytics or other required-reason APIs.
 - **Not done yet** (see `BACKLOG.md`):

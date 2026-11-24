@@ -43,6 +43,8 @@ final class GameScene: PixelScene {
     private var sparkTimer: TimeInterval = 0
     /// How far the camera has risen to keep a high jump on screen.
     private var cameraLift: CGFloat = 0
+    /// How far in from the left the skater sits, as a share of the screen.
+    private var cameraAnchor: CGFloat = 0.3
     /// True while the grind rumble and sound are on, so they can't be left running.
     private var grindFeedbackOn = false
 
@@ -71,6 +73,8 @@ final class GameScene: PixelScene {
     private let goalsBefore: Set<String>
     private var goalsThisRun: Set<String> = []
     private let cityWasComplete: Bool
+    /// Whether every goal in the city was done before this run (for the fireworks).
+    private let cityGoalsWereDone: Bool
     private var cityCompletedThisRun = false
 
     // Feel.
@@ -94,9 +98,12 @@ final class GameScene: PixelScene {
         self.city = city
         look = SkaterLook(outfit: outfit)
         run = Run(level: level)
+        Progress.shared.completeEarnedLetterGoals(in: city)
         goalsBefore = Progress.shared.goalsDone(at: level)
-        goalTracker = GoalTracker(goals: level.goals, alreadyMet: goalsBefore)
+        goalTracker = GoalTracker(goals: level.goals, alreadyMet: goalsBefore,
+                                  lettersFoundBefore: Progress.shared.letters(in: city))
         cityWasComplete = Progress.shared.isComplete(city)
+        cityGoalsWereDone = Progress.shared.allGoalsDone(in: city)
         tutorial = level.id == Level.tutorial.id ? Tutorial() : nil
         super.init(size: size)
     }
@@ -344,6 +351,8 @@ final class GameScene: PixelScene {
         var color: PixelColor
         var struck = false
         var hopping = false
+        /// A few grey words after the text: what a gap is.
+        var hint: String?
     }
 
     /// A title across the top, one or two columns of lines, and buttons along the bottom.
@@ -400,6 +409,20 @@ final class GameScene: PixelScene {
             }
             return
         }
+        if let hint = line.hint {
+            // The text and its hint side by side, centered together.
+            let textWidth = CGFloat(PixelFont.width(of: line.text))
+            let total = textWidth + 6 + CGFloat(PixelFont.width(of: hint))
+            let left = (point.x - total / 2).rounded()
+            for (text, ink, x) in [(line.text, line.color, left), (hint, PixelColor(0x9C9C9C), left + textWidth + 6)] {
+                let label = PixelLabel(anchor: CGPoint(x: 0, y: 0.5))
+                label.ink = ink
+                label.text = text
+                label.position = CGPoint(x: x, y: point.y)
+                overlay.addChild(label)
+            }
+            return
+        }
         let label = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
         label.ink = line.color
         label.text = line.text
@@ -414,13 +437,17 @@ final class GameScene: PixelScene {
         }
     }
 
-    /// The spot's goals, crossed out once done.
-    private func goalLines() -> [OverlayLine] {
+    /// The spot's goals, crossed out once done. With `hints`, a gap still to do says what it is.
+    private func goalLines(hints: Bool = true) -> [OverlayLine] {
         let doneCount = level.goals.filter { goalsBefore.contains($0.id) || goalsThisRun.contains($0.id) }.count
         return [OverlayLine(text: "GOALS \(doneCount)/\(level.goals.count)", color: Palette.yellow)] + level.goals.map { goal in
             if goalsThisRun.contains(goal.id) { return OverlayLine(text: goal.text, color: Palette.yellow, struck: true) }
             if goalsBefore.contains(goal.id) { return OverlayLine(text: goal.text, color: PixelColor(0x8C8C8C), struck: true) }
-            return OverlayLine(text: goal.text, color: Palette.white)
+            var line = OverlayLine(text: goal.text, color: Palette.white)
+            if hints, case .gap(let name) = goal.kind, let gap = level.gaps.first(where: { $0.name == name }), !gap.hint.isEmpty {
+                line.hint = gap.hint
+            }
+            return line
         }
     }
 
@@ -508,8 +535,146 @@ final class GameScene: PixelScene {
             self.stopGrindFeedback()
             self.router?.showMenu(.tips(back: self.tutorial == nil ? .spots(self.city) : .title))
         }))
-        let columns = level.goals.isEmpty ? [stats] : [stats, goalLines()]
-        showOverlay(title: "FINISH!", columns: columns, buttons: buttons)
+        let columns = level.goals.isEmpty ? [stats] : [stats, goalLines(hints: false)]
+        // The run that ticks off the city's last goal gets fireworks: first the city's
+        // name spelled out in them, then the results with more going off behind.
+        let finishedCity = tutorial == nil && !cityGoalsWereDone && progress.allGoalsDone(in: city)
+        guard finishedCity else {
+            showOverlay(title: "FINISH!", columns: columns, buttons: buttons)
+            return
+        }
+        celebrateAllGoals { [weak self] in
+            guard let self else { return }
+            self.showOverlay(title: "ALL \(self.city.name) GOALS!", columns: columns, buttons: buttons)
+            self.fireworks()
+        }
+    }
+
+    /// The screen dims, a rocket goes up, and it bursts into the city's name. `then`
+    /// runs as the letters start to fall.
+    private func celebrateAllGoals(then: @escaping () -> Void) {
+        showOverlay(title: "", columns: [], buttons: [])
+        let show = SKNode()
+        show.zPosition = -0.5
+        overlay.addChild(show)
+        // Side bursts while the name is up.
+        for (delay, side) in [(0.3, -1.0), (1.2, 1.0), (1.9, -1.0)] {
+            show.run(.sequence([.wait(forDuration: delay), .run { [weak self, weak show] in
+                guard let self, let show else { return }
+                let x = CGFloat(side) * (self.size.width / 2 - 24).rounded()
+                self.launchFirework(in: show, to: CGPoint(x: x, y: CGFloat.random(in: 10...24).rounded()),
+                                    color: [Palette.orange, PixelColor(0x68C0F0), Palette.green].randomElement()!)
+            }]))
+        }
+        let rise = 0.6
+        let rocket = SKSpriteNode(color: Palette.white.skColor, size: CGSize(width: 1, height: 2))
+        rocket.position = CGPoint(x: 0, y: -size.height / 2)
+        show.addChild(rocket)
+        rocket.run(.sequence([.move(to: CGPoint(x: 0, y: 8), duration: rise), .removeFromParent()]))
+        Sounds.shared.play(.pop)
+        show.run(.sequence([.wait(forDuration: rise), .run { [weak self, weak show] in
+            guard let self, let show else { return }
+            Sounds.shared.play(.perfect)
+            Haptics.finish()
+            self.spellInFireworks(self.city.name, in: show, center: CGPoint(x: 0, y: 8))
+        }]))
+        run(.sequence([.wait(forDuration: rise + 2.6), .run(then)]))
+    }
+
+    /// Sparks that fly out from `center` into the letters of `text`, twinkle, then fall.
+    private func spellInFireworks(_ text: String, in show: SKNode, center: CGPoint) {
+        // Each letter pixel is a spark, spaced out so the letters read as fireworks.
+        let spacing = [3, 2].first { CGFloat(PixelFont.width(of: text) * $0) <= safeFrame.width - 8 } ?? 1
+        let width = PixelFont.width(of: text) * spacing, height = PixelFont.glyphHeight * spacing
+        let left = -width / 2, bottom = Int(center.y) - height / 2
+        let colors = [Palette.yellow, Palette.orange, PixelColor(0xF878B8), PixelColor(0x68C0F0)]
+        var cursor = 0
+        for (letterIndex, character) in text.enumerated() {
+            let rows = PixelFont.glyph(character)
+            let color = colors[letterIndex % colors.count]
+            for (row, line) in rows.enumerated() {
+                for (column, pixel) in line.enumerated() where pixel == "#" {
+                    let target = CGPoint(x: left + (cursor + column) * spacing,
+                                         y: bottom + (PixelFont.glyphHeight - 1 - row) * spacing)
+                    let spark = SKSpriteNode(color: color.skColor, size: CGSize(width: max(1, spacing - 1), height: max(1, spacing - 1)))
+                    spark.anchorPoint = .zero
+                    spark.position = center
+                    show.addChild(spark)
+                    let fly = SKAction.move(to: target, duration: 0.7)
+                    fly.timingMode = .easeOut
+                    var flicker = 0
+                    spark.run(.sequence([
+                        .wait(forDuration: Double.random(in: 0...0.15)),
+                        fly,
+                        .repeat(.sequence([
+                            .wait(forDuration: 0.12, withRange: 0.08),
+                            .run { flicker += 1; spark.color = (flicker % 3 == 0 ? Palette.white : color).skColor },
+                        ]), count: 12),
+                        .group([.moveBy(x: 0, y: -12, duration: 0.7), .fadeOut(withDuration: 0.7)]),
+                        .removeFromParent(),
+                    ]))
+                }
+            }
+            cursor += rows[0].count + PixelFont.gap
+        }
+    }
+
+    /// Fireworks going off behind the results, over and over until you leave.
+    private func fireworks() {
+        Sounds.shared.play(.perfect)
+        Haptics.finish()
+        let colors = [Palette.yellow, Palette.orange, PixelColor(0xF878B8), PixelColor(0x68C0F0), Palette.green, Palette.white]
+        let show = SKNode()
+        show.zPosition = -0.5
+        overlay.addChild(show)
+        var burst = 0
+        show.run(.repeatForever(.sequence([
+            .run { [weak self, weak show] in
+                guard let self, let show else { return }
+                let color = colors[burst % colors.count]
+                burst += 1
+                // Somewhere across the top two thirds, left and right in turn.
+                let side: CGFloat = burst.isMultiple(of: 2) ? -1 : 1
+                let x = (side * CGFloat.random(in: 20...(self.size.width / 2 - 12))).rounded()
+                let y = CGFloat.random(in: 0...(self.size.height / 2 - 14)).rounded()
+                self.launchFirework(in: show, to: CGPoint(x: x, y: y), color: color)
+                if burst % 3 == 0 { Sounds.shared.play(.pop) }
+            },
+            .wait(forDuration: 0.45, withRange: 0.3),
+        ])))
+    }
+
+    /// One rocket: a spark rising from the bottom, then a ring of sparks falling away.
+    private func launchFirework(in show: SKNode, to point: CGPoint, color: PixelColor) {
+        let rocket = SKSpriteNode(color: Palette.white.skColor, size: CGSize(width: 1, height: 2))
+        rocket.position = CGPoint(x: point.x, y: -size.height / 2)
+        show.addChild(rocket)
+        let rise = 0.5
+        rocket.run(.sequence([
+            .move(to: point, duration: rise),
+            .removeFromParent(),
+        ]))
+        show.run(.sequence([
+            .wait(forDuration: rise),
+            .run { [weak show] in
+                guard let show else { return }
+                let count = 18
+                for index in 0..<count {
+                    let angle = Double(index) / Double(count) * 2 * .pi
+                    let reach = CGFloat.random(in: 14...20)
+                    let spark = SKSpriteNode(color: (index % 4 == 0 ? Palette.white : color).skColor, size: CGSize(width: 1, height: 1))
+                    spark.position = point
+                    show.addChild(spark)
+                    let out = SKAction.moveBy(x: reach * CGFloat(cos(angle)), y: reach * CGFloat(sin(angle)), duration: 0.5)
+                    out.timingMode = .easeOut
+                    spark.run(.sequence([
+                        out,
+                        .group([.moveBy(x: 0, y: -6, duration: 0.5), .fadeOut(withDuration: 0.5)]),
+                        .removeFromParent(),
+                    ]))
+                }
+            },
+        ]))
     }
 
     // MARK: Tutorial
@@ -767,7 +932,7 @@ final class GameScene: PixelScene {
 
         // Camera: the skater sits 30% in from the left, so you can see what's coming,
         // and the camera rises when a big jump would take their head off the top.
-        let cameraLeft = (run.x - size.width * 0.3).rounded()
+        let cameraLeft = (run.x - size.width * cameraAnchor).rounded()
         let skaterTop = baseline + run.height + 26
         let wantedLift = max(0, skaterTop - size.height)
         cameraLift += (wantedLift - cameraLift) * CGFloat(min(1, dt * 12))
@@ -824,9 +989,15 @@ final class GameScene: PixelScene {
             } else {
                 body.texture = look.air
             }
-        case .grinding(_, let trick):
+        case .grinding(_, .boardslide):
+            // The board turned across the rail, its deck sitting on it and the near
+            // wheels hanging down in front; arms out, wobbling to keep balance.
+            body.texture = look.slide[Int(run.time * 4) % look.slide.count]
+            board.texture = look.boardEndOn
+            board.position = CGPoint(x: 0, y: -2)
+            body.position = CGPoint(x: 0, y: 2)
+        case .grinding:
             body.texture = look.crouch
-            if trick == .boardslide { board.xScale = 0.375 }
         case .bailed:
             body.texture = look.bail
             body.position = CGPoint(x: -4, y: 0)
@@ -1009,3 +1180,63 @@ final class ParallaxStrip {
         }
     }
 }
+
+#if DEBUG
+// MARK: - Marketing screenshots
+
+extension GameScene {
+    /// Freezes the scene on a staged moment, with the HUD as it would be then, and
+    /// nothing that only makes sense to a player mid-run (the pause button, BEST).
+    /// `cameraAnchor` 0.5 centers the skater, for key art.
+    func stageForMarketing(_ staging: RunStaging, cameraAnchor: CGFloat = 0.3, hud: Bool = true,
+                           popups: [(text: String, color: PixelColor)] = [], sparks: Bool = false,
+                           banners shown: [(title: String, text: String, color: PixelColor)] = []) {
+        overlay.removeAllChildren()
+        overlayButtons.removeAll()
+        isOnBreak = true
+        setHudHidden(!hud)
+        pauseButton.alpha = 0
+        bestLabel.alpha = 0
+        tutorialBox.isHidden = true
+        run.stage(staging)
+        self.cameraAnchor = cameraAnchor
+        updateLettersLabel()
+        render(dt: 1)
+        for (index, popup) in popups.enumerated() {
+            let label = PixelLabel(anchor: CGPoint(x: 0.5, y: 0))
+            label.ink = popup.color
+            label.text = popup.text
+            label.zPosition = 60
+            label.position = CGPoint(x: skater.position.x, y: skater.position.y + 28 + CGFloat(index * 10))
+            world.addChild(label)
+        }
+        if sparks {
+            for _ in 0..<4 { spark(z: laneZ(run.drawnLane) + 6) }
+        }
+        // Banners as they look once they've dropped in, held still.
+        for banner in shown {
+            showBanner(banner.text, title: banner.title, color: banner.color)
+        }
+        for node in banners.children {
+            node.removeAllActions()
+            node.alpha = 1
+            node.position.y -= 6
+        }
+    }
+
+    /// The fireworks, on an empty results screen, for checking how they look
+    /// (`-fireworks YES` on the launch arguments). Saves nothing.
+    func showFireworksForTesting() {
+        celebrateAllGoals { [weak self] in
+            guard let self else { return }
+            self.showOverlay(title: "ALL \(self.city.name) GOALS!", columns: [self.goalLines(hints: false)], buttons: [])
+            self.fireworks()
+        }
+    }
+
+    /// The part of the scene on screen, in scene coordinates.
+    var marketingVisibleRect: CGRect {
+        CGRect(x: cam.position.x - size.width / 2, y: cam.position.y - size.height / 2, width: size.width, height: size.height)
+    }
+}
+#endif

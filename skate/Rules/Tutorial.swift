@@ -22,6 +22,8 @@ nonisolated struct TutorialStep: Equatable, Sendable {
         /// Land a shove-it or 360 flip.
         case spin
         case grind
+        /// Switch a grind into a boardslide.
+        case boardslide
         case hopOff
         /// Get the combo multiplier this high.
         case combo(Int)
@@ -42,6 +44,7 @@ nonisolated struct Tutorial: Sendable {
         TutorialStep(text: "OLLIE, TAP IN AIR: GRAB", check: .grab),
         TutorialStep(text: "AIR SWIPE UP/DOWN: SPIN", check: .spin),
         TutorialStep(text: "BACK LANE: LAND ON A RAIL", check: .grind),
+        TutorialStep(text: "ON RAIL, SWIPE DOWN: SLIDE", check: .boardslide),
         TutorialStep(text: "ON A RAIL, TAP: HOP OFF", check: .hopOff),
         TutorialStep(text: "TRICK AGAIN SOON: COMBO X3", check: .combo(3)),
         TutorialStep(text: "FRONT LANE: JUMP A CONE", check: .clear),
@@ -66,6 +69,7 @@ nonisolated struct Tutorial: Sendable {
             case (.grab, .landedTrick(let trick)): done = done || trick == .grab
             case (.spin, .landedTrick(let trick)): done = done || trick == .shoveIt || trick == .threeSixtyFlip
             case (.grind, .grindStarted): done = true
+            case (.boardslide, .grindSwitched(.boardslide)): done = true
             case (.hopOff, .popOff): done = true
             case (.clear, .cleared): done = true
             default: break

@@ -560,6 +560,10 @@ enum ThemeArt {
         return canvas.texture()
     }
 
+    /// What the food carts sell, one per cart in turn. Each fits a cart's sign
+    /// (24 pixels of `SignFont` at most; a test checks).
+    static let foodCartSigns = ["PIZZA", "TACOS", "SANDOS", "THAI", "BURGER", "RAMEN", "PHO", "CREPES", "CURRY"]
+
     /// Food carts and leafy trees, and Paul Bunyan towering over them.
     static func foodCartsAndTrees(width: Int = 320, height: Int = 48) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
@@ -567,6 +571,7 @@ enum ThemeArt {
         let carts = [PixelColor(0xF8B800), PixelColor(0xD82800), PixelColor(0x00A8A8), PixelColor(0xF878B8), PixelColor(0xFCFCFC), PixelColor(0x00A844)]
         var x = 4
         var bunyanDone = false
+        var cartCount = 0
         while x < width - 30 {
             if !bunyanDone, x > 140 {
                 bunyanDone = true
@@ -590,6 +595,12 @@ enum ThemeArt {
                 for stripe in 0..<24 { canvas.fill(x: x - 1 + stripe, y: 16, width: 1, height: 3, stripe % 4 < 2 ? Palette.white : color.darker()) }
                 canvas.fill(x: x + 3, y: 0, width: 4, height: 3, Palette.black)
                 canvas.fill(x: x + 15, y: 0, width: 4, height: 3, Palette.black)
+                // A sign on the roof saying what it sells, edged in the cart's color.
+                let sign = foodCartSigns[cartCount % foodCartSigns.count]
+                cartCount += 1
+                canvas.fill(x: x - 3, y: 19, width: 28, height: 9, color)
+                canvas.fill(x: x - 2, y: 20, width: 26, height: 7, PixelColor(0x241C14))
+                SignFont.draw(sign, into: &canvas, centerX: x + 11, y: 21, color: Palette.white)
                 x += 26
             }
             x += Int.random(in: 2...10, using: &generator)
@@ -719,6 +730,11 @@ enum SignFont {
     private static let glyphs: [Character: [String]] = [
         "A": [".#.", "#.#", "###", "#.#", "#.#"],
         "B": ["##.", "#.#", "##.", "#.#", "##."],
+        "C": ["###", "#..", "#..", "#..", "###"],
+        "H": ["#.#", "#.#", "###", "#.#", "#.#"],
+        "I": ["###", ".#.", ".#.", ".#.", "###"],
+        "U": ["#.#", "#.#", "#.#", "#.#", "###"],
+        "Z": ["###", "..#", ".#.", "#..", "###"],
         "S": ["###", "#..", "###", "..#", "###"],
         "D": ["##.", "#.#", "#.#", "#.#", "##."],
         "E": ["###", "#..", "##.", "#..", "###"],

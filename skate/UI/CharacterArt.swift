@@ -26,6 +26,10 @@ struct SkaterLook {
     let boardWheelsUp: SKTexture
     let boardUnderside: SKTexture
     let boardGrip: SKTexture
+    /// Boardsliding: arms out for balance (two frames, wobbling), and the board
+    /// turned across the rail, seen end-on with its near wheels hanging down.
+    let slide: [SKTexture]
+    let boardEndOn: SKTexture
     /// One picture of them standing on their board, for menus.
     let standing: SKTexture
     /// The board seen a little from above, turned through a full circle in
@@ -45,6 +49,8 @@ struct SkaterLook {
         boardWheelsUp = board.wheelsUp.texture()
         boardUnderside = board.underside.texture()
         boardGrip = board.grip.texture()
+        slide = poses.slide.map { $0.texture() }
+        boardEndOn = board.endOn.texture()
         standing = CharacterArt.standing(outfit: outfit)
         spinGripUp = (0..<CharacterArt.spinSteps).map { CharacterArt.spin(for: outfit, step: $0, graphicUp: false).texture() }
         spinGraphicUp = (0..<CharacterArt.spinSteps).map { CharacterArt.spin(for: outfit, step: $0, graphicUp: true).texture() }
@@ -54,10 +60,14 @@ struct SkaterLook {
 enum CharacterArt {
     struct Poses {
         var roll, crouch, air, grab, bail: PixelSprite
+        /// Two frames of balancing on a boardslide.
+        var slide: [PixelSprite]
     }
 
     struct Board {
         var side, wheelsUp, underside, grip: PixelSprite
+        /// Turned 90 degrees, across a rail: short, with the near truck's wheels either side.
+        var endOn: PixelSprite
     }
 
     // MARK: Colors
@@ -166,6 +176,32 @@ enum CharacterArt {
         "...wwww....wwww...",
     ]
 
+    /// Boardsliding: knees out, feet together on the turned board, arms out level.
+    private static let kidSlideLevel = [
+        "ss...tttttttt...ss",
+        ".sssttttttttttsss.",
+        ".....tttllttt.....",
+        ".....tttttttt.....",
+        ".....pppppppp.....",
+        "....ppppqppppp....",
+        "....ppp....ppp....",
+        ".....nnnnnnnn.....",
+        ".....wwwwwwww.....",
+    ]
+
+    /// The wobble: the back arm up, the front one down.
+    private static let kidSlideTilt = [
+        "ss...tttttttt.....",
+        ".sssttttttttttsss.",
+        ".....tttllttt...ss",
+        ".....tttttttt.....",
+        ".....pppppppp.....",
+        "....ppppqppppp....",
+        "....ppp....ppp....",
+        ".....nnnnnnnn.....",
+        ".....wwwwwwww.....",
+    ]
+
     private static let kidBail = [
         "...........kcccc..",
         "..........cccccccc",
@@ -211,11 +247,13 @@ enum CharacterArt {
         case .pat, .sammy:
             let head = outfit.kind == .sammy ? sammyHead : patHead
             return Poses(roll: sprite(head + kidRoll), crouch: sprite(head + kidCrouch), air: sprite(head + kidAir),
-                         grab: sprite(head + kidGrab), bail: sprite(kidBail))
+                         grab: sprite(head + kidGrab), bail: sprite(kidBail),
+                         slide: [sprite(head + kidSlideLevel), sprite(head + kidSlideTilt)])
         case .angie:
             let standing = sprite(dogTop + dogLegs + dogPaws)
             let tucked = sprite(dogTop + dogPaws)
-            return Poses(roll: standing, crouch: tucked, air: tucked, grab: tucked, bail: sprite(dogBail))
+            return Poses(roll: standing, crouch: tucked, air: tucked, grab: tucked, bail: sprite(dogBail),
+                         slide: [tucked, standing])
         }
     }
 
@@ -228,7 +266,8 @@ enum CharacterArt {
 
     /// Every template, for checking they're all the same width.
     static var allTemplates: [[String]] {
-        [patHead, sammyHead, kidRoll, kidCrouch, kidAir, kidGrab, kidBail, dogTop, dogLegs, dogPaws, dogBail]
+        [patHead, sammyHead, kidRoll, kidCrouch, kidAir, kidGrab, kidBail, kidSlideLevel, kidSlideTilt,
+         dogTop, dogLegs, dogPaws, dogBail]
     }
 
     // MARK: Boards
@@ -279,6 +318,14 @@ enum CharacterArt {
                 "kkkkkkkkkkkkkkkkkkkk",
                 "kkkkkkkkkkkkkkkkkkkk",
                 ".kkkkkkkkkkkkkkkkkk.",
+            ], colors: colors),
+            // Wider than the feet, so its curled-up edges show either side of the shoes.
+            endOn: PixelSprite([
+                "dk..........kd",
+                ".dkkkkkkkkkkd.",
+                "..dddddddddd..",
+                ".....mmmm.....",
+                "...www..www...",
             ], colors: colors)
         )
     }

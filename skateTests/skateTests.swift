@@ -279,6 +279,15 @@ struct RunTests {
         #expect((banked(rest).first ?? 0) > (50 + 100) * 2)
     }
 
+    @Test func swipingDownOnARailSwitchesToABoardslideAndBack() {
+        var run = Run(level: street([.rail(.middle, at: ollieTopX + Tuning.skaterHalfWidth, length: 300)]))
+        _ = tap(&run)
+        play(&run) { $0.isGrinding }
+        #expect(run.handle(.swipe(.down)) == [.grindSwitched(.boardslide)])
+        #expect(run.state == .grinding(feature: 0, trick: .boardslide))
+        #expect(run.handle(.swipe(.down)) == [.grindSwitched(.fiftyFifty)])
+    }
+
     @Test func tappingOnARailPopsOffAndKeepsTheCombo() {
         var run = Run(level: street([.rail(.middle, at: ollieTopX + Tuning.skaterHalfWidth, length: 300)]))
         _ = tap(&run)
@@ -635,6 +644,27 @@ struct GoalTests {
         #expect(Set(met) == ["flip", "ollie", "land", "score", "clean"])
     }
 
+    @Test func lettersFoundOnEarlierRunsCountForTheLettersGoal() {
+        let goals = [Goal(id: "letters", text: "FIND 2 LETTERS", kind: .letters)]
+        let run = Run(level: .downtown)
+        // Downtown has P and O. Only P found before: not yet.
+        var some = GoalTracker(goals: goals, lettersFoundBefore: [0])
+        #expect(some.update(run: run, events: [], dt: 0).isEmpty)
+        // Both found, on different runs: done, without finding them again.
+        var both = GoalTracker(goals: goals, lettersFoundBefore: [0, 1])
+        #expect(both.update(run: run, events: [], dt: 0).map(\.id) == ["letters"])
+    }
+
+    @Test func oldSavesGetTheLettersGoalForLettersFoundSeparately() throws {
+        let defaults = try #require(UserDefaults(suiteName: "skate.tests.\(UUID())"))
+        let progress = Progress(defaults: defaults)
+        progress.collect(letter: 0, in: .portland)
+        progress.collect(letter: 1, in: .portland)
+        progress.completeEarnedLetterGoals(in: .portland)
+        #expect(progress.goalsDone(at: .downtown).contains("downtown.letters"))
+        #expect(!progress.goalsDone(at: .skidmoreFountain).contains("skidmore.letters"))
+    }
+
     @Test func goalsDoneBeforeArentAnnouncedAgain() {
         let goals = [Goal(id: "score", text: "SCORE 1", kind: .score(1))]
         var tracker = GoalTracker(goals: goals, alreadyMet: ["score"])
@@ -668,9 +698,21 @@ struct GoalTests {
                     #expect(level.gaps.contains { $0.name == name }, "\(name)")
                 }
             }
+            for goal in level.goals {
+                // A grind goal needs a feature long enough to grind that long at top speed,
+                // landing right at its start, with a fifth of a second to spare.
+                if case .grind(let style, let seconds) = goal.kind {
+                    let longest = level.features.filter { $0.style == style }.map(\.length).max() ?? 0
+                    let time = (longest + 2 * Tuning.skaterHalfWidth) / level.maxSpeed
+                    #expect(Double(time) >= seconds + 0.2, "\(goal.text): at most \(time) s")
+                }
+            }
             for gap in level.gaps {
                 let parts = gap.features(in: level)
                 #expect(!parts.isEmpty, "\(gap.name)")
+                // The hint goes beside the gap's name on the goals screen, on the narrowest screen.
+                #expect(!gap.hint.isEmpty, "\(gap.name)")
+                #expect(PixelFont.width(of: gap.name) + 6 + PixelFont.width(of: gap.hint) <= 160, "\(gap.name): \(gap.hint)")
                 if case .transfer = gap.kind {
                     #expect(parts.count == 2 && parts.allSatisfy { level.features[$0].isGrindable }, "\(gap.name)")
                 }
@@ -710,6 +752,16 @@ struct RewardTests {
 }
 
 @MainActor
+struct FoodCartTests {
+    @Test func everyFoodCartSignFitsAndHasItsLetters() {
+        for sign in ThemeArt.foodCartSigns {
+            #expect(SignFont.width(of: sign) <= 24, "\(sign)")
+            #expect(sign.allSatisfy { SignFont.allGlyphs[$0] != nil }, "\(sign)")
+        }
+    }
+}
+
+@MainActor
 struct TutorialTests {
     @Test func stepsGoOneAtATime() {
         var tutorial = Tutorial()
@@ -735,7 +787,7 @@ struct TutorialTests {
         let level = Level.tutorial
         #expect(zip(level.features, level.features.dropFirst()).allSatisfy { $0.x <= $1.x })
         #expect(level.features.allSatisfy { $0.end < level.length && $0.lane != .middle })
-        #expect(Tutorial.steps.allSatisfy { PixelFont.width(of: "10/10 " + $0.text) <= 200 })
+        #expect(Tutorial.steps.allSatisfy { PixelFont.width(of: "\(Tutorial.steps.count)/\(Tutorial.steps.count) " + $0.text) <= 200 })
     }
 }
 
@@ -751,6 +803,70 @@ struct StoreTests {
     @Test func pricesAndLocksDrawInThePixelFont() {
         for text in ["$0.99", "$2.99", "$4.99", "COMING SOON FOR $4.99", "DON'T UNLOCK ANYTHING.", "YOU'RE READY!"] {
             #expect(text.allSatisfy { $0 == "?" || PixelFont.glyph($0) != PixelFont.glyph("?") }, "\(text)")
+        }
+    }
+}
+
+@MainActor
+struct GapFairnessTests {
+    /// How many spots along the street a held ollie can pop from and still get the gap,
+    /// rolling at `speed`. Each spot is a game pixel, so 10 is about a tenth of a second.
+    private func window(for gap: Gap, in level: Level, speed: CGFloat) -> Int {
+        let parts = gap.features(in: level).map { level.features[$0] }
+        let first = parts.map(\.x).min()!
+        // The gap's features moved along to x = 1300, on an otherwise empty street.
+        let shift = 1300 - first
+        var wins = 0
+        for pressX in stride(from: 1100, through: 1300, by: 1) {
+            var test = street(parts.map { var f = $0; f.x += shift; return f }, acceleration: 400, maxSpeed: speed)
+            guard case .over(let lane, let from, let to) = gap.kind else { return 0 }
+            test.gaps = [Gap(name: gap.name, points: gap.points, kind: .over(lane, from: from + shift, to: to + shift))]
+            test.startLane = lane
+            var run = Run(level: test)
+            play(&run, for: 30) { $0.x >= CGFloat(pressX) }
+            var events = run.handle(.press)
+            events += play(&run) { $0.verticalSpeed <= 0 }
+            events += run.handle(.release(held: 0.5))
+            events += play(&run) { $0.state == .rolling || $0.x > 1600 }
+            events += play(&run, for: 2) { _ in false }
+            if events.contains(.gap(gap.name, points: gap.points)) { wins += 1 }
+        }
+        return wins
+    }
+
+    /// Nothing moving is in the way of a gap when you get to it, at any speed you could
+    /// be going. Moving things start when you're `movingStartDistance` away; this rolls
+    /// at a steady speed from there and checks the whole gap, with the skater's width.
+    @Test func nothingMovingBlocksAGap() {
+        for level in City.portland.levels {
+            for gap in level.gaps {
+                let parts = gap.features(in: level).map { level.features[$0] }
+                guard let lane = parts.first?.lane else { continue }
+                let from = parts.map(\.x).min()! - 40, to = parts.map(\.end).max()! + 10
+                for mover in level.features where mover.isMoving && mover.lane == lane {
+                    for speed in stride(from: Tuning.speedAfterBail, through: level.maxSpeed, by: 5) {
+                        for x in stride(from: from, through: to, by: 1) where x >= mover.x - Tuning.movingStartDistance {
+                            let moved = mover.velocity * (x - (mover.x - Tuning.movingStartDistance)) / speed
+                            let start = mover.x + moved
+                            let inTheWay = x + Tuning.skaterHalfWidth > start && x - Tuning.skaterHalfWidth < start + mover.length
+                            #expect(!inTheWay, "\(gap.name): \(mover.style) at speed \(speed), x \(x)")
+                            if inTheWay { break }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every jump-over gap in Portland can be done with a held ollie, without needing
+    /// to have built up much speed first, and with a fair bit of room for timing.
+    @Test func everyJumpGapCanBeClearedWithAHeldOllie() {
+        for level in City.portland.levels {
+            for gap in level.gaps {
+                guard case .over = gap.kind else { continue }
+                #expect(window(for: gap, in: level, speed: Tuning.startSpeed) >= 8, "\(gap.name) at start speed")
+                #expect(window(for: gap, in: level, speed: 100) >= 15, "\(gap.name) at 100")
+            }
         }
     }
 }

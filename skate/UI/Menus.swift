@@ -94,11 +94,13 @@ final class PixelButton: SKNode {
         label.position = CGPoint(x: -(width / 2) + (width - textWidth) / 2, y: -(height / 2) + 2)
     }
 
-    /// True if the point (in the button's parent's coordinates) is on the button,
-    /// with a little extra room for fingers.
-    func hit(_ point: CGPoint) -> Bool {
-        guard isEnabled, !isHidden, parent != nil else { return false }
-        return boxRect.offsetBy(dx: position.x, dy: position.y).insetBy(dx: -3, dy: -3).contains(point)
+    /// True if the point is on the button, with a little extra room for fingers.
+    /// The point is in the button's parent's coordinates, or in `space`'s if given
+    /// (for buttons inside a scaled-down group).
+    func hit(_ point: CGPoint, in space: SKNode? = nil) -> Bool {
+        guard isEnabled, !isHidden, let parent else { return false }
+        let local = space.map { parent.convert(point, from: $0) } ?? point
+        return boxRect.offsetBy(dx: position.x, dy: position.y).insetBy(dx: -3, dy: -3).contains(local)
     }
 }
 
@@ -482,43 +484,40 @@ final class MenuScene: PixelScene {
     private func buildSpots(_ city: City) {
         let safe = safeFrame
         panel(CGRect(x: safe.minX, y: safe.minY + 2, width: safe.width, height: safe.height - 2))
-        label(city.name, at: CGPoint(x: safe.midX, y: safe.maxY - 8), color: Palette.yellow)
-        button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.maxY - 8)) { [weak self] in self?.show(.cities) }
-        button("TIP JAR", at: CGPoint(x: safe.maxX - 26, y: safe.maxY - 8), minWidth: 44, color: Self.tipColor) { [weak self] in
+        let headerY = safe.maxY - 8
+        let back = button("BACK", at: CGPoint(x: safe.minX + 20, y: headerY)) { [weak self] in self?.show(.cities) }
+        let tip = button("TIP JAR", at: CGPoint(x: safe.maxX - 26, y: headerY), minWidth: 44, color: Self.tipColor) { [weak self] in
             self?.openTips(from: .spots(city))
         }
+        // The city's name between the two buttons, smaller if it has to be.
+        let roomForName = 2 * min(safe.midX - back.calculateAccumulatedFrame().maxX,
+                                  tip.calculateAccumulatedFrame().minX - safe.midX) - 6
+        let nameWidth = PixelFont.width(of: city.name)
+        let nameScale = PixelFont.fittingScale(width: nameWidth, into: roomForName, maxScale: 1,
+                                               screenPixelsPerPixel: screenPixelsPerPixel)
+        let name = label(city.name, at: .zero, anchor: CGPoint(x: 0, y: 0.5), color: Palette.yellow, scale: nameScale)
+        name.position = CGPoint(x: snapToScreen(safe.midX - CGFloat(nameWidth) * nameScale / 2), y: headerY)
 
-        let rowHeight: CGFloat = 12
-        let found = progress.letters(in: city)
-        for (number, level) in city.levels.enumerated() {
-            let y = safe.maxY - 24 - CGFloat(number) * rowHeight
-            let row = button("\(number + 1) \(level.name)", at: CGPoint(x: safe.minX + 4, y: y)) { [weak self] in
-                self?.router?.play(level, in: city)
-            }
-            // Left-align the row's button.
-            row.position.x = (safe.minX + 2 + row.calculateAccumulatedFrame().width / 2).rounded()
-
-            let indices = level.letters.map(\.index)
-            let runs: [(String, PixelColor)] = indices.map {
-                (String(city.letters[$0]), found.contains($0) ? Palette.yellow : PixelColor(0x9C9C9C))
-            }
-            if !runs.isEmpty {
-                runsLabel(runs, at: CGPoint(x: safe.maxX - 50, y: y), anchor: CGPoint(x: 1, y: 0.5))
-            }
-            // A dot for each goal: yellow once it's done.
-            let done = progress.goalsDone(at: level)
-            for (index, goal) in level.goals.enumerated() {
-                let dot = SKSpriteNode(color: (done.contains(goal.id) ? Palette.yellow : PixelColor(0x5C5C5C)).skColor,
-                                       size: CGSize(width: 2, height: 2))
-                dot.anchorPoint = .zero
-                dot.position = CGPoint(x: (safe.maxX - 44 + CGFloat(index * 3)).rounded(), y: (y - 1).rounded())
-                content.addChild(dot)
-            }
-            let best = progress.bestScore(at: level)
-            if best > 0 {
-                label("\(best)", at: CGPoint(x: safe.maxX - 4, y: y), anchor: CGPoint(x: 1, y: 0.5), color: Palette.white)
-            }
+        // The list fills the rest of the panel: shrunk to fit if it has to be, with
+        // the letters, goal dots and best scores lined up on the right.
+        let list = SpotsList(city: city, progress: progress) { [weak self] level in
+            self?.router?.play(level, in: city)
         }
+        let area = CGRect(x: safe.minX + 2, y: safe.minY + 5, width: safe.width - 5, height: safe.maxY - 17 - (safe.minY + 5))
+        let scale = min(
+            PixelFont.fittingScale(width: list.naturalWidth, into: area.width, maxScale: 1, screenPixelsPerPixel: screenPixelsPerPixel),
+            PixelFont.fittingScale(width: list.naturalHeight, into: area.height, maxScale: 1, screenPixelsPerPixel: screenPixelsPerPixel))
+        list.build(width: Int((area.width / scale).rounded(.down)))
+        list.setScale(scale)
+        list.position = CGPoint(x: snapToScreen(area.minX), y: snapToScreen(area.maxY))
+        content.addChild(list)
+        buttons += list.buttons
+    }
+
+    /// The nearest screen pixel, so anything scaled down still lands sharp.
+    private func snapToScreen(_ value: CGFloat) -> CGFloat {
+        let step = 1 / CGFloat(max(1, screenPixelsPerPixel))
+        return (value / step).rounded() * step
     }
 
     private func buildBuilder() {
@@ -594,7 +593,7 @@ final class MenuScene: PixelScene {
             changeCity(by: point.x < start.x ? 1 : -1)
             return
         }
-        if let button = buttons.first(where: { $0.hit(start) && $0.hit(point) }) {
+        if let button = buttons.first(where: { $0.hit(start, in: self) && $0.hit(point, in: self) }) {
             Sounds.shared.play(.pop)
             Haptics.pop(charged: false)
             button.action()
@@ -603,5 +602,103 @@ final class MenuScene: PixelScene {
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         touchStart = nil
+    }
+}
+
+// MARK: - The spots list
+
+/// A city's spots, one row each: the spot's button on the left, then its letters,
+/// a dot per goal and the best score, lined up in columns on the right. It's laid
+/// out in whole game pixels from its top-left corner; the menu scales it down to
+/// fit if the screen is short or narrow, so nothing ever overlaps.
+final class SpotsList: SKNode {
+    static let rowPitch = 14
+    static let buttonHeight = PixelFont.glyphHeight + 6
+    static let nameGap = 6, columnGap = 4
+
+    private let city: City
+    private let progress: Progress
+    private let play: (Level) -> Void
+    private(set) var buttons: [PixelButton] = []
+
+    private var titles: [String] { city.levels.enumerated().map { "\($0.offset + 1) \($0.element.name)" } }
+    private var nameColumn: Int { titles.map { PixelFont.width(of: $0) + 8 }.max() ?? 0 }
+    private var lettersColumn: Int {
+        city.levels.map { level in PixelFont.width(of: String(level.letters.map { city.letters[$0.index] })) }.max() ?? 0
+    }
+    private var dotsColumn: Int { max(0, (city.levels.map(\.goals.count).max() ?? 0) * 3 - 1) }
+    /// Room for a five-digit score at least, so the columns don't jump about as scores go up.
+    private var scoreColumn: Int {
+        ([PixelFont.width(of: "00000")] + city.levels.map { PixelFont.width(of: "\(progress.bestScore(at: $0))") }).max()!
+    }
+
+    /// The narrowest the list can be with nothing touching.
+    var naturalWidth: Int { nameColumn + Self.nameGap + lettersColumn + Self.columnGap + dotsColumn + Self.columnGap + scoreColumn }
+    var naturalHeight: Int { max(0, city.levels.count * Self.rowPitch - 1) }
+
+    init(city: City, progress: Progress, play: @escaping (Level) -> Void) {
+        self.city = city
+        self.progress = progress
+        self.play = play
+        super.init()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// Lay the rows out across `width` game pixels (at least `naturalWidth`); any
+    /// extra room goes between the names and the columns.
+    func build(width: Int) {
+        removeAllChildren()
+        buttons.removeAll()
+        let width = max(width, naturalWidth)
+        let scoreRight = width
+        let dotsLeft = scoreRight - scoreColumn - Self.columnGap - dotsColumn
+        let lettersRight = dotsLeft - Self.columnGap
+        let found = progress.letters(in: city)
+        let done = { (level: Level) in self.progress.goalsDone(at: level) }
+
+        for (row, level) in city.levels.enumerated() {
+            let boxTop = -row * Self.rowPitch
+            let boxBottom = boxTop - Self.buttonHeight
+            // The text inside a button sits two pixels up from its bottom; the columns match it.
+            let textY = CGFloat(boxBottom + 2)
+
+            let button = PixelButton(titles[row]) { [weak self] in self?.play(level) }
+            let buttonWidth = PixelFont.width(of: titles[row]) + 8
+            // A button's box hangs half its size either side of its position.
+            button.position = CGPoint(x: buttonWidth / 2, y: boxBottom + Self.buttonHeight / 2)
+            addChild(button)
+            buttons.append(button)
+
+            let runs: [(String, PixelColor)] = level.letters.map(\.index).map {
+                (String(city.letters[$0]), found.contains($0) ? Palette.yellow : PixelColor(0x9C9C9C))
+            }
+            if !runs.isEmpty {
+                let letters = SKSpriteNode(texture: PixelFont.texture(runs: runs))
+                letters.anchorPoint = CGPoint(x: 1, y: 0)
+                letters.position = CGPoint(x: CGFloat(lettersRight), y: textY)
+                addChild(letters)
+            }
+
+            // A dot for each goal: yellow once it's done.
+            let doneGoals = done(level)
+            for (index, goal) in level.goals.enumerated() {
+                let dot = SKSpriteNode(color: (doneGoals.contains(goal.id) ? Palette.yellow : PixelColor(0x5C5C5C)).skColor,
+                                       size: CGSize(width: 2, height: 2))
+                dot.anchorPoint = .zero
+                dot.position = CGPoint(x: dotsLeft + index * 3, y: boxBottom + 5)
+                addChild(dot)
+            }
+
+            let best = progress.bestScore(at: level)
+            if best > 0 {
+                let score = PixelLabel(anchor: CGPoint(x: 1, y: 0))
+                score.text = "\(best)"
+                score.position = CGPoint(x: CGFloat(scoreRight), y: textY)
+                addChild(score)
+            }
+        }
     }
 }

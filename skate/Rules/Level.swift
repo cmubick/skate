@@ -305,6 +305,9 @@ nonisolated struct Gap: Equatable, Sendable {
     var name: String
     var points: Int
     var kind: Kind
+    /// What to do, in a few words, shown beside the gap's goal before it's done:
+    /// "BENCH+MANHOLE". It has to fit beside the name on the narrowest screen (a test checks).
+    var hint: String = ""
 
     /// The features this gap is made of, by their place in the level.
     func features(in level: Level) -> [Int] {
