@@ -87,3 +87,4 @@ From the design doc: one real spot (Downtown square, final art style, letters, s
   - To do: menu or title music, and songs for each new city.
 - **Sounds for every skate move** (2026-11-23): rolling wheels, flips, spins, grabs, a lock-on clank, three grind loops (metal rails, concrete and wood, boardslides), quarter-pipe launches, clears, banked combos, gaps, goals, manhole falls and firework crackle.
 - **Music and sound switches** (2026-11-23): a note and a speaker icon in the top-left of the title, goals and pause screens; separate settings, remembered. Sound effects now play through an audio engine from in-memory buffers, which also fixed a slow first load of each spot.
+- **iPad full screen** (2026-11-23): the first App Store upload failed because a landscape-only iPad app must opt out of multitasking. The project now sets `UIRequiresFullScreen`. That key is deprecated since iPadOS 26; supporting portrait and resizable windows on iPad is the long-term fix.

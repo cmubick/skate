@@ -305,37 +305,41 @@ Notes:
 
 ```
 1. SCREEN RECORDING
-See the attached video, recorded on an iPhone. It shows launching the app, the tutorial, choosing Portland and a spot, a run with tricks, grinds and a goal, the skater builder, and the tip jar with a tip.
+See the attached video, recorded on an iPhone. It shows launching the app, the music and sound switches, the tutorial, choosing Portland and a spot, a run with tricks, a grind and a goal, the pause menu, the finish screen, the skater builder, and the tip jar with a tip.
 
 2. PURPOSE AND AUDIENCE
-Skate is a single-player, 8-bit skateboarding game for all ages, played with one thumb. The skater rolls on their own through real city spots, starting with six in Portland, Oregon; you tap, hold and swipe to ollie, flip, grind and change lanes, building combos for points and completing goals at each spot. No ads and no account.
+Skate is a single-player, 8-bit skateboarding game for all ages, played with one thumb. The skater rolls on their own through real city spots, starting with six in Portland, Oregon. Players tap, hold and swipe to ollie, flip, grind and change lanes, building combos for points, finding hidden letters and completing five goals at each spot. There are no ads and no account.
 
 3. SETUP AND ACCESS
 No account, login or setup is needed, and the app works offline. From the title screen:
-- PLAY: choose a city (Portland is open), tap GO, then pick one of six spots. Each spot lists its goals before the run.
+- PLAY: choose a city (Portland is open), tap GO, then pick one of six spots. Each spot lists its goals before the run; GO starts it.
 - TUTORIAL: a practice street that teaches each move one at a time.
 - SKATER: pick Pat, Sammy or Angie the dog, and their colors and board.
-- TIP JAR: three optional tips (consumable in-app purchases). Tips unlock nothing.
-The pause button (top right) during a run shows the goals and lets you quit.
+- TIP JAR: three optional tips. Also on the city picker, the spot list and every finish screen.
+- The two small buttons in the top-left corner switch the music and the sound effects on and off. They're also on the goals screen and the pause menu.
+Controls during a run: tap to ollie (hold for a higher one); swipe up or down to change lanes; in the air, swipe sideways to flip, up or down to spin, tap to grab; land on a rail or ledge to grind it. The pause button (top right) shows the goals and lets you quit.
+In-app purchases, all on the TIP JAR screen:
+- Small tip, Generous tip, Big tip (consumable): optional, can be given more than once, and unlock nothing. The screen says THANK YOU! after a tip.
 Other cities in the city picker show "Coming soon in the full game". Nothing can be bought for them in this version; that purchase is not offered.
 
 4. EXTERNAL SERVICES
-None, other than Apple's In-App Purchase (StoreKit) for tips. The app makes no network requests of its own and uses no third-party SDKs, analytics, advertising, authentication, data providers or AI services. All art and sound is drawn and generated in the app.
+None, other than Apple's In-App Purchase (StoreKit) for tips. The app makes no network requests of its own and uses no third-party SDKs, analytics, advertising, authentication, data providers or AI services. All artwork, music and sound effects are original and generated in the app.
 
 5. REGIONAL DIFFERENCES
 None. The app behaves the same in every region. It is in English only.
 
 6. REGULATED INDUSTRY OR THIRD-PARTY MATERIAL
-The app is not in a regulated industry, and there is no real-money play, betting or wagering. The backdrops include original pixel-art drawings of public Portland landmarks and streets. No third-party artwork, music or code is used.
+The app is not in a regulated industry, and there is no real-money play, betting or wagering. The backdrops include original pixel-art drawings of Portland streets and public landmarks. No third-party artwork, music or code is used.
 ```
 
 **YOU, before pasting item 6:** decide about Portlandia and the White Stag sign
 (see Content Rights above), and adjust that sentence to match.
 
 **The screen recording (YOU):** 1 to 2 minutes on your iPhone, starting from the
-home screen. Show: launch, Tutorial for a few steps, back, PLAY → Portland → GO →
-Downtown, GO, a run with an ollie, a flip and a grind, the pause menu, the finish
-screen, SKATER, then TIP JAR and a tip. Tips in a TestFlight build are free test
+home screen. Show: launch, tap the music and sound switches off and on, Tutorial
+for a few steps, back, PLAY → Portland → GO → Downtown, GO, a run with an ollie, a
+flip and a grind, the pause menu, the finish screen, SKATER, then TIP JAR and a
+tip. Tips in a TestFlight build are free test
 purchases.
 
 **Flag (YOU):** the full game screen says "COMING SOON FOR $4.99" and locked cities

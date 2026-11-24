@@ -418,6 +418,12 @@ there at all.
     or `skateTests/` is in the build automatically.
   - **Scheme:** the shared scheme in `skate.xcodeproj/xcshareddata/xcschemes`
     carries the StoreKit test setting.
+- **Landscape only, and full screen on iPad.** The App Store rejects an iPad app
+  that supports only some orientations unless it opts out of iPad multitasking,
+  so the project sets `UIRequiresFullScreen` (`INFOPLIST_KEY_UIRequiresFullScreen`).
+  Apple deprecated that key in iPadOS 26 and says it will be ignored one day. When
+  it is, the game must handle portrait and any window size on iPad, which
+  `PixelLayout` mostly does already.
 - **The minimum iOS version (16)** is the oldest one this code is known to build
   for, and the only reason it's that low. Raising it is safe. Some code checks
   `#available(iOS 17.0, *)` for StoreKit's purchase sheet and can be simplified
