@@ -1,14 +1,15 @@
 # Skate
 
-An 8-bit, one-thumb skateboarding side-scroller for iPhone and iPad, set in
-Portland, Oregon. Made by Tuesday Games.
+An 8-bit, one-thumb skateboarding side-scroller for iPhone, iPad and Android,
+set in Portland, Oregon. Made by Tuesday Games.
 
 You roll automatically from left to right down a street with three lanes. Tap to
 ollie, hold for a higher one, swipe to change lanes and to flip, grind rails and
 ledges, chain tricks into combos, clear things for points, find the city's
 letters, and work through each spot's goals.
 
-- **Platform:** iOS and iPadOS 16 and later, landscape only.
+- **Platform:** iOS and iPadOS 16 and later, landscape only. The Android version
+  is in `android/` (see [Android](#android)).
 - **Engine:** Apple's **SpriteKit** inside a small **UIKit** app. No other game
   engine and no third-party code: no Swift packages, no CocoaPods.
 - **Language:** Swift. Tests use **Swift Testing**, not XCTest.
@@ -49,6 +50,32 @@ ID in `xcrun simctl launch`). They only work in debug builds:
 **Tips from Xcode:** the shared scheme's **Run > Options > StoreKit
 Configuration** points at `skateTests/Skate.storekit`. That's a local test store,
 so the tip jar works from Xcode without App Store Connect. See [Store](#store).
+
+---
+
+## Android
+
+The Android version lives in `android/`, set up like Sevens' Android port: Kotlin
+and Gradle, a plain-Kotlin `rules` module ported file for file from `skate/Rules`,
+and an `app` module with the art, sound, scenes, haptics and Google Play store.
+It plays and looks the same as the iOS game: tests check every picture pixel for
+pixel, every sound and song, and a scripted run on every spot against the Swift
+code itself. **`android/README.md` has everything else**: building, running,
+debug switches, saved data, purchases and how the Kotlin differs from the Swift.
+
+To build and run it, open the `android` folder in Android Studio and press Run, or:
+
+```sh
+cd android
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+./gradlew :rules:test :app:testDebugUnitTest   # all the Android tests
+./gradlew installDebug                         # onto a running emulator or phone
+```
+
+**Changing the game:** make the change on iOS, then the same change in the Kotlin
+(the files have the same names), then run `sh android/tools/parity/make_fixtures.sh`
+and the Android tests. If a picture, sound, song or rule now differs between the two,
+the parity tests say which.
 
 ---
 
@@ -453,7 +480,8 @@ there at all.
   - the full game purchase
   - prices in currencies other than `$` in the pixel font
   - slow motion on big combos (built, switched off)
-  - an Android port, planned for later as with Sevens
+  - on Android: a real-phone playtest, the Play Console setup and listing, and
+    release signing (see `android/README.md`)
 
 ## Contributing
 
@@ -461,6 +489,8 @@ there at all.
   `UI/` or the scenes.
 - **Tests:** add a test for any rule you change. Run the whole suite before
   committing.
+- **Android:** make every change in `android/` too, and keep the parity tests
+  passing (see [Android](#android)).
 - **Tuning:** put feel numbers in `Tuning.swift`, not inline.
 - **Decisions:** write new design decisions into `BACKLOG.md` as you make them.
 - **Keep this README current.** Update the sections a change affects (layout,

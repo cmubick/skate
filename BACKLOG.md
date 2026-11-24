@@ -4,7 +4,7 @@ The design doc is `skate-design-v0.1.md` (exported from the Claude Doc, which is
 
 ## Decided
 
-- **Engine: SpriteKit**, same as Mahjong and Sevens (UIKit app, one `GameScene`, rules in `skate/Rules`, drawing and sound in `skate/UI`). Android comes later as a port, as Sevens did.
+- **Engine: SpriteKit**, same as Mahjong and Sevens (UIKit app, one `GameScene`, rules in `skate/Rules`, drawing and sound in `skate/UI`). Android is a port, as Sevens did (see below).
 - **Landscape only, big chunky pixels.** The game is at least 180 x 96 game pixels, drawn at the largest whole-number scale that fits (12x on an iPhone 18 Pro, so 218 x 100). The street fills the lower half and the skater is about a third of the screen tall. Extra room shows more street ahead and more sky (`PixelLayout` in `GameViewController.swift`). This is zoomed in from the doc's 256 x 144, so update the doc.
 - **The skater is a blocky kid** (18 px wide): yellow cap on backwards, black tee with a small white print, khakis, black shoes. The face has an outline at the back and chin, an ear, eye and mouth so it reads in profile. Final look still depends on which skaters we have.
 - **Everyone is drawn at the same size and in the same style.** Walkers, joggers and people on bikes use the skaters' heads and 18 px wide bodies (`PeopleArt.swift`), two pixels taller so a grown-up's head lines up with a kid's on a board. Other skaters and Angie on a walk already use the skater drawings. Animals (penguins, goats) stay their own size.
@@ -88,3 +88,15 @@ From the design doc: one real spot (Downtown square, final art style, letters, s
 - **Sounds for every skate move** (2026-11-23): rolling wheels, flips, spins, grabs, a lock-on clank, three grind loops (metal rails, concrete and wood, boardslides), quarter-pipe launches, clears, banked combos, gaps, goals, manhole falls and firework crackle.
 - **Music and sound switches** (2026-11-23): a note and a speaker icon in the top-left of the title, goals and pause screens; separate settings, remembered. Sound effects now play through an audio engine from in-memory buffers, which also fixed a slow first load of each spot.
 - **iPad full screen** (2026-11-23): the first App Store upload failed because a landscape-only iPad app must opt out of multitasking. The project now sets `UIRequiresFullScreen`. That key is deprecated since iPadOS 26; supporting portrait and resizable windows on iPad is the long-term fix.
+
+- **Game Center leaderboards: version 1.1** (decided 2026-11-23; 1.0 ships without them).
+  - App: Game Center capability; sign the player in at launch (the game works the same if they decline); send each run's score to its spot's leaderboard; a LEADERBOARD button on the finish screen and the spot list opening Apple's leaderboard screen.
+  - Leaderboards: one per spot (high score, highest first, integer), IDs like `skate.portland.downtown`; maybe a "Portland total" for the sum of the six best scores.
+  - App Store Connect (Chris): create the leaderboards with matching IDs, tick Game Center on the 1.1 version and add them.
+  - Check Apple's docs first: whether Game Center changes the App Privacy answer ("Data Not Collected") or the age rating questions.
+
+- **Android port** (2026-11-24): in `android/`, set up like Sevens' (Kotlin, Gradle, a plain-Kotlin `rules` module and an `app` module), package `com.tuesdaygames.skate`, Android 8.0 and later, landscape. Everything from iOS: the six Portland spots, letters, gaps, goals, tutorial, skater builder, tip jar (Google Play Billing, the same three product IDs), coming-soon cities, music, sounds, switches, haptics and the fireworks.
+  - Drawn on a plain Android View with a small stand-in for the bits of SpriteKit the game uses, so the scenes port line for line. Not Compose (Sevens' choice): every screen here is pixel art, menus included.
+  - Parity tests compare every picture, sound, song and a scripted run on each spot with the Swift code itself (`android/tools/parity/make_fixtures.sh` builds it), so the two can't drift apart unnoticed.
+  - Android extras: the back button pauses a run or goes back a menu page; a phone on silent doesn't mute the game (the switches do), as in Sevens.
+  - To do: play it on a real Android phone (feel, haptics, sound latency); the Play Console app, tip products, listing and data safety form; release signing; store screenshots.

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A black window behind the game, full screen, drawn into the camera cutout too.
+         The game keeps its buttons clear of the cutout itself (its safe area). -->
+    <style name="Theme.Skate" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>
