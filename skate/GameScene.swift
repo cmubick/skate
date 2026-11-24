@@ -366,10 +366,11 @@ final class GameScene: PixelScene {
             }
         }
         let buttonY = top - CGFloat(10 * (rows + 1)) - 6
-        let spacing: CGFloat = 52
+        // Four buttons squeeze up a little to fit narrow screens.
+        let spacing: CGFloat = buttons.count > 3 ? 49 : 52
         let firstX = -spacing * CGFloat(buttons.count - 1) / 2
         for (index, (text, color, action)) in buttons.enumerated() {
-            let button = PixelButton(text, minWidth: 46, color: color, action: action)
+            let button = PixelButton(text, minWidth: buttons.count > 3 ? 44 : 46, color: color, action: action)
             button.position = CGPoint(x: (firstX + CGFloat(index) * spacing).rounded(), y: buttonY.rounded())
             overlay.addChild(button)
             overlayButtons.append(button)
@@ -502,6 +503,11 @@ final class GameScene: PixelScene {
             }))
         }
         buttons.append(("SPOTS", PixelColor(0x24308C), { [weak self] in self?.leave() }))
+        buttons.append(("TIP JAR", MenuScene.tipColor, { [weak self] in
+            guard let self else { return }
+            self.stopGrindFeedback()
+            self.router?.showMenu(.tips(back: self.tutorial == nil ? .spots(self.city) : .title))
+        }))
         let columns = level.goals.isEmpty ? [stats] : [stats, goalLines()]
         showOverlay(title: "FINISH!", columns: columns, buttons: buttons)
     }
@@ -542,6 +548,7 @@ final class GameScene: PixelScene {
             ]], buttons: [
                 ("PLAY", PixelColor(0x00A844), { [weak self] in self?.router?.play(.downtown, in: .portland) }),
                 ("MENU", PixelColor(0x24308C), { [weak self] in self?.leave() }),
+                ("TIP JAR", MenuScene.tipColor, { [weak self] in self?.router?.showMenu(.tips(back: .title)) }),
             ])
             return
         }

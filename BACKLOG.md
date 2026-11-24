@@ -23,7 +23,7 @@ The design doc is `skate-design-v0.1.md` (exported from the Claude Doc, which is
 - **Text uses a 5 x 7 pixel font**, about twice the old size.
 - **Working name "Skate"**, bundle ID `com.tuesdaygames.skate`. The real title is still open.
 - **Grinds lock on automatically** and last until the rail ends or you tap to hop off. No hold-to-balance meter for now; one could come back for long rails only.
-- **Three skaters: Terry, Sam and Angie** (a black and grey aussiedoodle). The skater builder picks the skater and colors for shirt (Angie's bandana), pants (not for Angie), hat or no hat, and board. Saved between launches.
+- **Three skaters: Pat, Sammy and Angie** (a black and grey aussiedoodle). The skater builder picks the skater and colors for shirt (Angie's bandana), pants (not for Angie), hat or no hat, and board. Saved between launches.
 - **Cities:** Portland is free and open. San Francisco, Los Angeles, New York, Fresno, Sacramento, Austin, Seattle and Astoria show as coming soon.
 - **City letters:** each spot hides one or two of its city's letters (Portland: P O at Downtown, R T at Skidmore Fountain, L at Burnside, A at North Portland, N at SE Waterfront, D on the Zoo Bomb). Found letters are saved and show in gold along the bottom left during a run.
 - **Portland spots:** Downtown (the grey-box tutorial street), Skidmore Fountain, Burnside Skatepark, North Portland, SE Waterfront and Zoo Bomb. Moving things (people, bikes, trains, cars, animals) start moving as they come on screen, so a spot plays the same every time. The Zoo Bomb keeps speeding you up.
@@ -43,11 +43,11 @@ To do:
 - [ ] A quick in-game tuning panel (debug builds only), so numbers can be changed on the phone.
 - [ ] **Play every Portland spot** and tune the layouts: when moving things meet you depends on your speed, so some stretches may be too crowded or too empty.
 - [ ] **Zoo Bomb downhill look.** It speeds you up, and the hills in the backdrop slope down, but the road itself is flat. A real slope (stepped ground tiles) would sell it better.
-- [ ] **App Store Connect products** for `skate.tip.small`, `skate.tip.medium` and `skate.tip.large` (and `skate.fullgame`, not for sale yet). To try the tip jar from Xcode before then, set the scheme's Run > Options > StoreKit Configuration to `skateTests/Skate.storekit`.
+- [ ] **App Store Connect products** for `skate.tip.small`, `skate.tip.medium` and `skate.tip.large` (and `skate.fullgame`, not for sale yet). Until then, running from Xcode uses `skateTests/Skate.storekit` (the shared `skate` scheme's Run > Options > StoreKit Configuration), so tips can be tried.
 - [ ] **Full game on sale** when the next city is ready: turn on `Store.fullGameOnSale`, open the cities the purchase unlocks, and add Restore Purchases (and Redeem Code, like Sevens) to the full game screen.
 - [ ] **Prices in other currencies** show as `?` where the pixel font has no symbol (only `$` so far).
 - [ ] **Slow motion, take two.** Big combos and spelling a city used to drop to 35% speed for half a second, which felt jarring mid-run. Ideas: a much gentler slowdown (70-80%), easing in and out instead of snapping, only on landing rather than in the air, or a freeze-frame on the callout only. Switch `slowMotionOn` back on to try them.
-- [ ] **Sam's look.** Sam has longer black hair and darker skin than Terry; change if you had someone else in mind.
+- [ ] **Sammy's look.** Sammy has longer black hair and darker skin than Pat; change if you had someone else in mind.
 
 ## Milestone 2 and on
 
@@ -55,7 +55,7 @@ From the design doc: one real spot (Downtown square, final art style, letters, s
 
 - **Run clock** and free-skate mode (decided above).
 - **Music**: one 4-voice chiptune loop per city plus a menu tune.
-- **Store** (built): tips now (`skate.tip.small` $0.99, `skate.tip.medium` $2.99, `skate.tip.large` $4.99), and the full game (`skate.fullgame`, $4.99, every city after Portland) once the other cities are ready. Until then `Store.fullGameOnSale` is off: the locked cities show a padlock and a FULL GAME button that opens a coming-soon screen with a link to the tip jar. Same shape as Sevens' `Store.swift`.
+- **Store** (built): tips now (`skate.tip.small` $0.99, `skate.tip.medium` $2.99, `skate.tip.large` $4.99), and the full game (`skate.fullgame`, $4.99, every city after Portland) once the other cities are ready. Until then `Store.fullGameOnSale` is off: the locked cities show a padlock and a FULL GAME button that opens a coming-soon screen with a link to the tip jar. Same shape as Sevens' `Store.swift`. The tip jar is loud on purpose: a pink TIP JAR button right under PLAY (with a jar of coins), and on the city picker, the spot list, the full game screen, every finish screen and the end of the tutorial. The three tips always show, with US prices until the App Store answers.
 - **App Store material**: `AppStore/` (listing, checklist, export options) and `docs/` (support and privacy pages), copied from Mahjong when it's time to ship.
 - **App icon**: a placeholder from `AppStore/icon/make_icon.swift`. Run `swift AppStore/icon/make_icon.swift <out.png> light|dark|tinted` for each of the three files in `AppIcon.appiconset`.
 

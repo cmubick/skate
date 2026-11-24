@@ -541,9 +541,24 @@ struct RunTests {
 
 @MainActor
 struct CharacterTests {
+    @Test func outfitsSavedBeforeTheRenameStillLoad() throws {
+        let saved = #"{"kind":"sam","shirt":"red","pants":"khaki","board":"brown"}"#
+        let outfit = try JSONDecoder().decode(Outfit.self, from: Data(saved.utf8))
+        #expect(outfit.kind == .sammy)
+        #expect(SkaterKind.pat.name == "PAT" && SkaterKind.sammy.name == "SAMMY")
+    }
+
+    @Test func angieStartsInARedBandanaWithNoHatOnAWhiteBoard() {
+        var outfit = Outfit.standard
+        outfit.switchSkater(to: .angie)
+        #expect(outfit.kind == .angie && outfit.shirt == .red && outfit.hat == nil && outfit.board == .white)
+        outfit.switchSkater(to: .sammy)
+        #expect(outfit.kind == .sammy)
+    }
+
     @Test func outfitsCycleAndWrap() {
-        #expect(Outfit.cycle(SkaterKind.angie, in: SkaterKind.allCases, step: 1) == .terry)
-        #expect(Outfit.cycle(SkaterKind.terry, in: SkaterKind.allCases, step: -1) == .angie)
+        #expect(Outfit.cycle(SkaterKind.angie, in: SkaterKind.allCases, step: 1) == .pat)
+        #expect(Outfit.cycle(SkaterKind.pat, in: SkaterKind.allCases, step: -1) == .angie)
         #expect(Outfit.cycle(ColorChoice?.some(.brown), in: Outfit.hatChoices, step: 1) == nil)
         #expect(Outfit.cycle(ColorChoice?.none, in: Outfit.hatChoices, step: 1) == .black)
     }

@@ -2,7 +2,7 @@
 //  CharacterArt.swift
 //  skate
 //
-//  Terry, Sam and Angie, drawn from little pixel templates. Some letters in the
+//  Pat, Sammy and Angie, drawn from little pixel templates. Some letters in the
 //  templates stand for outfit colors (shirt, pants, hat, board), so one set of
 //  drawings makes every outfit.
 //
@@ -70,11 +70,11 @@ enum CharacterArt {
             "n": PixelColor(0x1C1C1C), "w": Palette.white, "m": PixelColor(0x8C8C8C), "r": PixelColor(0xF878A0),
         ]
         switch outfit.kind {
-        case .terry:
+        case .pat:
             colors["s"] = Palette.skin
             colors["h"] = Palette.hair
             colors["o"] = Palette.outline
-        case .sam:
+        case .sammy:
             colors["s"] = PixelColor(0x9C5C34)
             colors["h"] = PixelColor(0x1C1008)
             colors["o"] = PixelColor(0x4C2410)
@@ -93,7 +93,7 @@ enum CharacterArt {
 
     // MARK: Kids
 
-    static let terryHead = [
+    static let patHead = [
         "......cccccc......",
         ".....cccccccc.....",
         "..kkkccccccccc....",
@@ -105,8 +105,8 @@ enum CharacterArt {
         ".......sss........",
     ]
 
-    /// Sam has longer hair, down to the collar at the back.
-    static let samHead = [
+    /// Sammy has longer hair, down to the collar at the back.
+    static let sammyHead = [
         "......cccccc......",
         ".....cccccccc.....",
         "..kkkccccccccc....",
@@ -208,8 +208,8 @@ enum CharacterArt {
         let colors = colors(for: outfit)
         func sprite(_ rows: [String]) -> PixelSprite { PixelSprite(rows, colors: colors) }
         switch outfit.kind {
-        case .terry, .sam:
-            let head = outfit.kind == .sam ? samHead : terryHead
+        case .pat, .sammy:
+            let head = outfit.kind == .sammy ? sammyHead : patHead
             return Poses(roll: sprite(head + kidRoll), crouch: sprite(head + kidCrouch), air: sprite(head + kidAir),
                          grab: sprite(head + kidGrab), bail: sprite(kidBail))
         case .angie:
@@ -228,7 +228,7 @@ enum CharacterArt {
 
     /// Every template, for checking they're all the same width.
     static var allTemplates: [[String]] {
-        [terryHead, samHead, kidRoll, kidCrouch, kidAir, kidGrab, kidBail, dogTop, dogLegs, dogPaws, dogBail]
+        [patHead, sammyHead, kidRoll, kidCrouch, kidAir, kidGrab, kidBail, dogTop, dogLegs, dogPaws, dogBail]
     }
 
     // MARK: Boards

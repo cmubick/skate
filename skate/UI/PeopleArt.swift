@@ -48,7 +48,7 @@ struct Person {
         return colors
     }
 
-    var head: [String] { longHair ? CharacterArt.samHead : CharacterArt.terryHead }
+    var head: [String] { longHair ? CharacterArt.sammyHead : CharacterArt.patHead }
 }
 
 enum PeopleArt {

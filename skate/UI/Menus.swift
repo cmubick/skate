@@ -103,6 +103,21 @@ final class PixelButton: SKNode {
 }
 
 enum UIArt {
+    /// A glass tip jar with coins in it.
+    static func tipJar() -> SKTexture {
+        PixelSprite([
+            ".lllllll.",
+            "..lllll..",
+            ".g.....g.",
+            "g.......g",
+            "g...o...g",
+            "g..ooo..g",
+            "g.ooooo.g",
+            "gooooooog",
+            ".ggggggg.",
+        ], colors: ["l": Palette.lightGrey, "g": PixelColor(0x9CD0F8), "o": Palette.yellow]).texture()
+    }
+
     /// A little padlock, for things in the full game.
     static func padlock() -> SKTexture {
         PixelSprite([
@@ -145,8 +160,12 @@ final class MenuScene: PixelScene {
         case builder
         /// The full game: coming soon, with a link to the tip jar.
         case fullGame
-        case tips
+        /// The tip jar, and the page its BACK button returns to.
+        indirect case tips(back: Page)
     }
+
+    /// The tip jar's color: loud on purpose.
+    static let tipColor = PixelColor(0xE8508C)
 
     /// What the tip jar says after a purchase.
     private var tipMessage = ""
@@ -213,6 +232,7 @@ final class MenuScene: PixelScene {
     func show(_ page: Page) {
         self.page = page
         layoutScene()
+        if case .tips = page, Store.shared.tips.isEmpty { Task { await Store.shared.refresh() } }
     }
 
     override func layoutScene() {
@@ -226,7 +246,7 @@ final class MenuScene: PixelScene {
         case .spots(let city): buildSpots(city)
         case .builder: buildBuilder()
         case .fullGame: buildFullGame()
-        case .tips: buildTips()
+        case .tips(let back): buildTips(back: back)
         }
     }
 
@@ -303,10 +323,18 @@ final class MenuScene: PixelScene {
         button("PLAY", at: CGPoint(x: buttonX, y: 58), minWidth: 64, color: PixelColor(0x00A844)) { [weak self] in
             self?.show(.cities)
         }
-        button("TUTORIAL", at: CGPoint(x: buttonX, y: 42), minWidth: 64) { [weak self] in
+        // The tip jar, right under PLAY, with a jar of coins beside it.
+        button("TIP JAR", at: CGPoint(x: buttonX, y: 42), minWidth: 64, color: Self.tipColor) { [weak self] in
+            self?.openTips(from: .title)
+        }
+        let jar = SKSpriteNode(texture: UIArt.tipJar())
+        jar.anchorPoint = CGPoint(x: 1, y: 0.5)
+        jar.position = CGPoint(x: (buttonX - 36).rounded(), y: 42)
+        content.addChild(jar)
+        button("TUTORIAL", at: CGPoint(x: buttonX, y: 26), minWidth: 64) { [weak self] in
             self?.router?.play(.tutorial, in: .portland)
         }
-        button("SKATER", at: CGPoint(x: buttonX, y: 26), minWidth: 64) { [weak self] in
+        button("SKATER", at: CGPoint(x: buttonX, y: 10), minWidth: 64) { [weak self] in
             self?.show(.builder)
         }
     }
@@ -352,6 +380,9 @@ final class MenuScene: PixelScene {
             }
         }
         button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(.title) }
+        button("TIP JAR", at: CGPoint(x: (safe.midX - 6).rounded(), y: safe.minY + 12), minWidth: 44, color: Self.tipColor) { [weak self] in
+            self?.openTips(from: .cities)
+        }
     }
 
     // MARK: Full game and tips
@@ -378,38 +409,51 @@ final class MenuScene: PixelScene {
             label("COMING SOON FOR \(Store.fullGamePrice)", at: CGPoint(x: safe.midX, y: safe.minY + 30), color: Palette.yellow)
         }
         button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(.cities) }
-        button("TIP JAR", at: CGPoint(x: safe.maxX - 30, y: safe.minY + 12), minWidth: 48, color: PixelColor(0x00A844)) { [weak self] in
-            self?.tipMessage = ""
-            self?.show(.tips)
+        button("TIP JAR", at: CGPoint(x: safe.maxX - 30, y: safe.minY + 12), minWidth: 48, color: Self.tipColor) { [weak self] in
+            self?.openTips(from: .fullGame)
         }
     }
 
-    private func buildTips() {
+    private func openTips(from page: Page) {
+        tipMessage = ""
+        show(.tips(back: page))
+    }
+
+    /// The three tips, always shown. Prices come from the App Store once it answers;
+    /// until then they show the usual US prices.
+    static let tipLabels: [(name: String, price: String)] = [("SMALL", "$0.99"), ("MEDIUM", "$2.99"), ("LARGE", "$4.99")]
+
+    private func buildTips(back: Page) {
         let safe = safeFrame
         panel(CGRect(x: safe.minX, y: safe.minY + 2, width: safe.width, height: safe.height - 2))
         label("TIP JAR", at: CGPoint(x: safe.midX, y: safe.maxY - 8), color: Palette.yellow)
         label("TIPS ARE OPTIONAL AND", at: CGPoint(x: safe.midX, y: safe.maxY - 22), color: PixelColor(0xBCBCBC))
         label("DON'T UNLOCK ANYTHING.", at: CGPoint(x: safe.midX, y: safe.maxY - 32), color: PixelColor(0xBCBCBC))
-        let tips = Store.shared.tips
+        let products = Store.shared.tips
         let rowY = safe.midY - 4
-        if tips.isEmpty {
-            label(Store.shared.hasLoaded ? "TIPS AREN'T AVAILABLE NOW" : "LOADING...", at: CGPoint(x: safe.midX, y: rowY),
-                  color: PixelColor(0x9C9C9C))
-        } else {
-            let names = ["SMALL", "MEDIUM", "LARGE"]
-            let spacing = min(64, (safe.width - 20) / CGFloat(tips.count))
-            for (index, tip) in tips.enumerated() {
-                let x = safe.midX + (CGFloat(index) - CGFloat(tips.count - 1) / 2) * spacing
-                button(tip.displayPrice, at: CGPoint(x: x, y: rowY), minWidth: 48, color: PixelColor(0x00A844)) { [weak self] in
-                    self?.buy(tip)
+        let spacing = min(64, (safe.width - 20) / 3)
+        for (index, tip) in Self.tipLabels.enumerated() {
+            let x = safe.midX + CGFloat(index - 1) * spacing
+            let product = index < products.count ? products[index] : nil
+            button(product?.displayPrice ?? tip.price, at: CGPoint(x: x, y: rowY), minWidth: 48,
+                   color: Self.tipColor) { [weak self] in
+                guard let self else { return }
+                if let product {
+                    self.buy(product)
+                } else {
+                    self.tipMessage = Store.shared.hasLoaded ? "TIPS AREN'T SET UP YET" : "ONE MOMENT..."
+                    self.layoutScene()
                 }
-                label(index < names.count ? names[index] : tip.displayName, at: CGPoint(x: x, y: rowY - 13), color: PixelColor(0x9C9C9C))
             }
+            label(tip.name, at: CGPoint(x: x, y: rowY - 13), color: PixelColor(0x9C9C9C))
         }
         if !tipMessage.isEmpty {
             label(tipMessage, at: CGPoint(x: safe.midX, y: safe.minY + 28), color: Palette.yellow)
         }
-        button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(.fullGame) }
+        let jar = SKSpriteNode(texture: UIArt.tipJar())
+        jar.position = CGPoint(x: (safe.midX - 34).rounded(), y: (safe.maxY - 8).rounded())
+        content.addChild(jar)
+        button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(back) }
     }
 
     private func buy(_ product: Product) {
@@ -440,6 +484,9 @@ final class MenuScene: PixelScene {
         panel(CGRect(x: safe.minX, y: safe.minY + 2, width: safe.width, height: safe.height - 2))
         label(city.name, at: CGPoint(x: safe.midX, y: safe.maxY - 8), color: Palette.yellow)
         button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.maxY - 8)) { [weak self] in self?.show(.cities) }
+        button("TIP JAR", at: CGPoint(x: safe.maxX - 26, y: safe.maxY - 8), minWidth: 44, color: Self.tipColor) { [weak self] in
+            self?.openTips(from: .spots(city))
+        }
 
         let rowHeight: CGFloat = 12
         let found = progress.letters(in: city)
@@ -495,7 +542,7 @@ final class MenuScene: PixelScene {
         }
         let rows: [Row] = [
             Row(title: "SKATER", value: outfit.kind.name, enabled: true) { outfit, step in
-                outfit.kind = Outfit.cycle(outfit.kind, in: SkaterKind.allCases, step: step)
+                outfit.switchSkater(to: Outfit.cycle(outfit.kind, in: SkaterKind.allCases, step: step))
             },
             Row(title: outfit.kind.isDog ? "BANDANA" : "SHIRT", value: outfit.shirt.name, enabled: true) { outfit, step in
                 outfit.shirt = Outfit.cycle(outfit.shirt, in: ColorChoice.clothes, step: step)

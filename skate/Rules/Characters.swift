@@ -9,9 +9,16 @@
 import Foundation
 
 nonisolated enum SkaterKind: String, CaseIterable, Codable, Sendable {
-    case terry, sam, angie
+    // The saved names are the skaters' old names, so outfits saved before the rename still load.
+    case pat = "terry", sammy = "sam", angie
 
-    var name: String { rawValue.uppercased() }
+    var name: String {
+        switch self {
+        case .pat: "PAT"
+        case .sammy: "SAMMY"
+        case .angie: "ANGIE"
+        }
+    }
 
     /// Angie is a dog: she wears a bandana instead of a shirt, and no pants.
     var isDog: Bool { self == .angie }
@@ -61,7 +68,7 @@ nonisolated enum ColorChoice: String, CaseIterable, Codable, Sendable {
 }
 
 nonisolated struct Outfit: Codable, Equatable, Sendable {
-    var kind: SkaterKind = .terry
+    var kind: SkaterKind = .pat
     var shirt: ColorChoice = .black
     var pants: ColorChoice = .khaki
     /// Nil for no hat.
@@ -69,6 +76,16 @@ nonisolated struct Outfit: Codable, Equatable, Sendable {
     var board: ColorChoice = .brown
 
     static let standard = Outfit()
+
+    /// Changes skater. Angie starts out in her own look: a red bandana, no hat, a white board.
+    mutating func switchSkater(to kind: SkaterKind) {
+        self.kind = kind
+        if kind == .angie {
+            shirt = .red
+            hat = nil
+            board = .white
+        }
+    }
 
     /// The next choice in a list, wrapping around. `step` is +1 or -1.
     static func cycle<T: Equatable>(_ value: T, in all: [T], step: Int) -> T {

@@ -50,7 +50,7 @@ enum FeatureArt {
             let person = Person.random(&generator)
             return two({ PeopleArt.biker(person, frame: $0) }, x: -1)
         case .skater:
-            let outfit = Outfit(kind: Bool.random(using: &generator) ? .terry : .sam,
+            let outfit = Outfit(kind: Bool.random(using: &generator) ? .pat : .sammy,
                                 shirt: ColorChoice.clothes.randomElement(using: &generator)!,
                                 pants: ColorChoice.clothes.randomElement(using: &generator)!,
                                 hat: Bool.random(using: &generator) ? ColorChoice.clothes.randomElement(using: &generator) : nil,
