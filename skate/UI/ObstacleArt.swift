@@ -67,6 +67,12 @@ enum FeatureArt {
         case .goat: return two({ goat(frame: $0) })
         case .hole: return one(manhole(width: width), y: -CGFloat(manholeHeight / 2))
         case .quarterPipe: return one(quarterPipe(feature))
+        case .bubbler: return one(bubbler())
+        case .millEnds: return one(millEnds(), y: -2)
+        case .zooTrain: return two({ zooTrain(frame: $0) })
+        case .miniBike:
+            let person = Person.random(&generator)
+            return two({ PeopleArt.miniBiker(person, frame: $0) }, x: -1)
         }
     }
 
@@ -383,6 +389,70 @@ enum FeatureArt {
         // The deck behind the lip, and the coping on it.
         canvas.fill(x: width, y: 0, width: 3, height: Int(feature.height) + 1, shade)
         canvas.fill(x: width - 2, y: Int(feature.height) + 1, width: 5, height: 1, Palette.steel)
+        return canvas
+    }
+
+    /// A Benson Bubbler: a bronze column with four bowls, water bubbling up from each.
+    static func bubbler() -> PixelCanvas {
+        var canvas = PixelCanvas(width: 10, height: 12)
+        let bronze = PixelColor(0x8C6C34), light = PixelColor(0xB8944C), water = PixelColor(0x9CD0F8)
+        canvas.fill(x: 2, y: 0, width: 6, height: 2, bronze)
+        canvas.fill(x: 4, y: 2, width: 2, height: 6, bronze)
+        canvas.fill(x: 3, y: 4, width: 1, height: 2, light)
+        canvas.fill(x: 0, y: 8, width: 10, height: 2, bronze)
+        canvas.fill(x: 0, y: 9, width: 10, height: 1, light)
+        for bowl in [1, 4, 8] { canvas.set(bowl, 10, water) }
+        canvas.set(4, 11, water)
+        canvas.set(8, 11, water)
+        return canvas
+    }
+
+    /// Mill Ends Park: a ring of curb the size of a dinner plate, a tiny tree, a tiny sign.
+    static func millEnds() -> PixelCanvas {
+        var canvas = PixelCanvas(width: 10, height: 9)
+        ellipse(&canvas, x: 0, y: 0, width: 10, height: 4, PixelColor(0xA8A8A0))
+        ellipse(&canvas, x: 1, y: 1, width: 8, height: 2, PixelColor(0x4C7C2C))
+        canvas.fill(x: 4, y: 2, width: 1, height: 3, Palette.brown)
+        canvas.fill(x: 3, y: 5, width: 3, height: 3, Palette.green)
+        canvas.set(4, 8, Palette.darkGreen)
+        canvas.fill(x: 7, y: 2, width: 1, height: 3, Palette.darkGrey)
+        canvas.fill(x: 7, y: 5, width: 2, height: 1, Palette.white)
+        return canvas
+    }
+
+    /// The zoo train: a little green steam engine pulling open cars full of kids.
+    static func zooTrain(frame: Int) -> PixelCanvas {
+        var canvas = PixelCanvas(width: 56, height: 18)
+        let green = PixelColor(0x2C7C3C), red = PixelColor(0xC82818), gold = PixelColor(0xE8B830)
+        let wheel = Palette.black
+        // The engine, at the front (left, coming toward you).
+        canvas.fill(x: 2, y: 4, width: 12, height: 6, green)
+        canvas.fill(x: 2, y: 6, width: 12, height: 1, gold)
+        canvas.fill(x: 12, y: 4, width: 6, height: 11, green)
+        canvas.fill(x: 13, y: 10, width: 4, height: 3, PixelColor(0x88B8F8))
+        canvas.fill(x: 11, y: 15, width: 8, height: 1, red)
+        canvas.fill(x: 4, y: 10, width: 2, height: 4, Palette.black)
+        canvas.fill(x: 3, y: 14, width: 4, height: 1, Palette.black)
+        canvas.fill(x: 0, y: 2, width: 3, height: 2, red)
+        canvas.set(0, 4, red)
+        // A puff of smoke that drifts with the frames.
+        canvas.fill(x: 3 + frame, y: 15, width: 3, height: 2, Palette.lightGrey)
+        // Two open cars.
+        for car in 0..<2 {
+            let cx = 20 + car * 18
+            canvas.fill(x: cx, y: 4, width: 16, height: 5, red)
+            canvas.fill(x: cx, y: 8, width: 16, height: 1, gold)
+            for (index, kid) in [cx + 2, cx + 7, cx + 12].enumerated() {
+                let colors = [Palette.skin, PixelColor(0x9C5C34), PixelColor(0xF0C098)]
+                canvas.fill(x: kid, y: 9, width: 2, height: 2, colors[(index + car) % 3])
+                canvas.fill(x: kid, y: 11, width: 2, height: 1, [Palette.hair, Palette.yellow, PixelColor(0x1C1008)][(index + car + frame) % 3])
+            }
+            canvas.fill(x: cx - 2, y: 4, width: 2, height: 1, Palette.darkGrey)
+        }
+        for wx in [4, 9, 14, 22, 31, 40, 49] {
+            canvas.fill(x: wx, y: 0, width: 3, height: 3, wheel)
+            canvas.set(wx + 1, 1, frame == 0 ? Palette.grey : wheel)
+        }
         return canvas
     }
 

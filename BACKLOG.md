@@ -10,13 +10,15 @@ The design doc is `skate-design-v0.1.md` (exported from the Claude Doc, which is
 - **Everyone is drawn at the same size and in the same style.** Walkers, joggers and people on bikes use the skaters' heads and 18 px wide bodies (`PeopleArt.swift`), two pixels taller so a grown-up's head lines up with a kid's on a board. Other skaters and Angie on a walk already use the skater drawings. Animals (penguins, goats) stay their own size.
 - **The ollie pops the moment your thumb touches down.** Keeping it down makes gravity lighter while the board rises, up to the charged height (38 px); a tap gives the plain ollie (20 px). An up or down swipe within 0.15 s of the pop, by the same thumb, takes the ollie back (no points, no speed-up) and changes lanes. A press made in the air and still down at touchdown pops again on landing.
 - **Clearing things scores.** Getting all the way over something in the air adds points to the combo: 20 + 3 per pixel of height + 1 per pixel of length, times 1.5 and up for moving things (plus 1x per 100 px/s), times the hardest trick done on the way over (grab 1.5, kickflip/heelflip/shove-it 2, 360 flip 3). A cone is 65, a moving car 235, a manhole 35; low curbs and tracks nothing. A popup names it ("CONE +65"). The points ride the combo multiplier and are lost on a bail.
-- **Goals:** five per spot (score, letters, the spot's named gap, a trick over something, and one more). Listed before every run, announced with a banner the moment you get one, crossed out on the pause menu and the finish screen, and saved. The spot list shows a dot per goal. No clock yet: the finish line is the time limit.
+- **Goals:** five per spot (score, the spot's letters ("FIND THE LETTER" or "FIND 2 LETTERS"), the spot's named gap, a trick over something, and one more). Listed before every run, announced with a banner the moment you get one, crossed out on the pause menu and the finish screen, and saved. The spot list shows a dot per goal. No clock yet: the finish line is the time limit.
 - **Named gaps,** at least one per spot, worth a fat bonus on the combo: PIONEER GAP and DOUBLE CONE (Downtown), FOUNTAIN GAP (Skidmore), BURNSIDE GAP, ST JOHNS GAP, ESPLANADE GAP, SUNSET GAP (Zoo Bomb). A gap is either "over everything from here to there in one jump" or "grind this, land a grind on that".
 - **Combo meter:** a clean landing keeps the combo open for 1.2 s (a bar under the combo). Another trick in that time keeps it going; a plain ollie doesn't count, so landing with nothing new, or letting the bar run out, banks it. Bailing loses it.
-- **Big combos** get a callout (SICK! 1000, GNARLY! 2500, RADICAL! 5000, LEGENDARY! 10000) and half a second of slow motion. Bails shake the screen.
+- **Big combos** get a callout (SICK! 1000, GNARLY! 2500, RADICAL! 5000, LEGENDARY! 10000). Bails shake the screen. Slow motion is built but switched off (`slowMotionOn` in `GameScene.swift`): it felt jarring.
 - **Quarter pipes** (two at Burnside): ride up one and fly off the lip about 46 px high.
 - **Spelling a city wins something.** PORTLAND unlocks the PDX carpet board. The last letter sets off a celebration (the name hops in letter by letter, slow motion, sparks), and the finish screen of that run shows it again.
 - **360 flip takes 0.46 s,** still the longest trick (shove-it 0.34, kickflip 0.32).
+- **Tutorial:** a TUTORIAL button on the title screen opens a practice street (rails in the back lane, cones in the front) with ten steps, one at a time, each waiting until you do it: ollie, high ollie, lanes, kickflip, grab, spin, grind, hop off, a x3 combo, and clearing a cone. Then "YOU'RE READY!" and a button into Downtown.
+- **Portland landmarks:** Downtown has Pioneer Courthouse Square (signpost and courthouse), the Portland Building with Portlandia, the White Stag sign, a full-block bookstore, Big Pink and Montgomery Park, plus Benson Bubblers to ollie and Mill Ends Park. Skidmore has the Chinatown gate, Saturday Market and the White Stag sign. Burnside shows the Burnside Bridge's arches and towers. North Portland has Paul Bunyan, Cathedral Park's arches and Mount St. Helens. SE Waterfront has the Hawthorne Bridge, Tilikum Crossing, Big Pink, OMSI, the Blueback and Mount Hood. Zoo Bomb has Mount Hood, Pittock Mansion, the zoo train and Zoobombers on little bikes.
 - **Swipe sideways on the ground to ollie straight into a flip**: left is a kickflip, right a heelflip. Swipes in the air still do every flip. Not in the doc yet.
 - **Text uses a 5 x 7 pixel font**, about twice the old size.
 - **Working name "Skate"**, bundle ID `com.tuesdaygames.skate`. The real title is still open.
@@ -41,6 +43,10 @@ To do:
 - [ ] A quick in-game tuning panel (debug builds only), so numbers can be changed on the phone.
 - [ ] **Play every Portland spot** and tune the layouts: when moving things meet you depends on your speed, so some stretches may be too crowded or too empty.
 - [ ] **Zoo Bomb downhill look.** It speeds you up, and the hills in the backdrop slope down, but the road itself is flat. A real slope (stepped ground tiles) would sell it better.
+- [ ] **App Store Connect products** for `skate.tip.small`, `skate.tip.medium` and `skate.tip.large` (and `skate.fullgame`, not for sale yet). To try the tip jar from Xcode before then, set the scheme's Run > Options > StoreKit Configuration to `skateTests/Skate.storekit`.
+- [ ] **Full game on sale** when the next city is ready: turn on `Store.fullGameOnSale`, open the cities the purchase unlocks, and add Restore Purchases (and Redeem Code, like Sevens) to the full game screen.
+- [ ] **Prices in other currencies** show as `?` where the pixel font has no symbol (only `$` so far).
+- [ ] **Slow motion, take two.** Big combos and spelling a city used to drop to 35% speed for half a second, which felt jarring mid-run. Ideas: a much gentler slowdown (70-80%), easing in and out instead of snapping, only on landing rather than in the air, or a freeze-frame on the callout only. Switch `slowMotionOn` back on to try them.
 - [ ] **Sam's look.** Sam has longer black hair and darker skin than Terry; change if you had someone else in mind.
 
 ## Milestone 2 and on
@@ -49,7 +55,7 @@ From the design doc: one real spot (Downtown square, final art style, letters, s
 
 - **Run clock** and free-skate mode (decided above).
 - **Music**: one 4-voice chiptune loop per city plus a menu tune.
-- **Store**: one $4.99 full-game unlock plus three tips, the same way as `Store.swift` in Mahjong. Product IDs to follow the `com.tuesdaygames.skate.*` pattern.
+- **Store** (built): tips now (`skate.tip.small` $0.99, `skate.tip.medium` $2.99, `skate.tip.large` $4.99), and the full game (`skate.fullgame`, $4.99, every city after Portland) once the other cities are ready. Until then `Store.fullGameOnSale` is off: the locked cities show a padlock and a FULL GAME button that opens a coming-soon screen with a link to the tip jar. Same shape as Sevens' `Store.swift`.
 - **App Store material**: `AppStore/` (listing, checklist, export options) and `docs/` (support and privacy pages), copied from Mahjong when it's time to ship.
 - **App icon**: a placeholder from `AppStore/icon/make_icon.swift`. Run `swift AppStore/icon/make_icon.swift <out.png> light|dark|tinted` for each of the three files in `AppIcon.appiconset`.
 

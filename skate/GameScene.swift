@@ -61,6 +61,10 @@ final class GameScene: PixelScene {
     /// Goal and gap banners, callouts and the city celebration, over the street.
     private let banners = SKNode()
 
+    // The tutorial, when this run is one: the step to do, in a box over the street.
+    private var tutorial: Tutorial?
+    private let tutorialBox = SKNode()
+
     // Goals.
     private var goalTracker: GoalTracker
     /// Done on earlier runs, and done on this one.
@@ -93,6 +97,7 @@ final class GameScene: PixelScene {
         goalsBefore = Progress.shared.goalsDone(at: level)
         goalTracker = GoalTracker(goals: level.goals, alreadyMet: goalsBefore)
         cityWasComplete = Progress.shared.isComplete(city)
+        tutorial = level.id == Level.tutorial.id ? Tutorial() : nil
         super.init(size: size)
     }
 
@@ -124,7 +129,7 @@ final class GameScene: PixelScene {
             node.position = CGPoint(x: feature.x + featureLook.offset.x,
                                     y: StreetArt.baseline(forLane: lane) + featureLook.offset.y)
             // Holes and tracks lie on the ground, under anything in their lane.
-            let onGround = feature.kind == .hole || feature.isLow
+            let onGround = feature.kind == .hole || feature.kind == .decor || feature.isLow
             node.zPosition = laneZ(lane) - (onGround ? 3 : 0)
             world.addChild(node)
             featureNodes.append((node, featureLook))
@@ -181,6 +186,8 @@ final class GameScene: PixelScene {
         cam.addChild(comboMeter)
         banners.zPosition = 150
         cam.addChild(banners)
+        tutorialBox.zPosition = 120
+        cam.addChild(tutorialBox)
         overlay.zPosition = 200
         cam.addChild(overlay)
 
@@ -190,6 +197,7 @@ final class GameScene: PixelScene {
         layoutScene()
         render()
         if !level.goals.isEmpty { showIntro() }
+        showTutorialStep()
 
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive),
                                                name: UIApplication.willResignActiveNotification, object: nil)
@@ -215,6 +223,7 @@ final class GameScene: PixelScene {
         comboLabel.position = CGPoint(x: middle, y: safe.maxY - line)
         multiplierLabel.position = CGPoint(x: middle, y: safe.maxY - line * 2)
         comboMeterOrigin = CGPoint(x: middle - Self.comboMeterWidth / 2, y: safe.maxY - line * 3 + 1)
+        tutorialBox.position = CGPoint(x: middle, y: (safe.maxY - line * 3 - 5).rounded())
         strips.forEach { $0.layout(viewWidth: size.width) }
     }
 
@@ -276,8 +285,15 @@ final class GameScene: PixelScene {
 
     private func apply(_ gestureEvents: [GestureEvent]) {
         for gesture in gestureEvents {
-            react(run.handle(gesture))
+            process(run.handle(gesture), dt: 0)
         }
+    }
+
+    /// Everything the run reports goes through here: goals, the tutorial, then sounds and pictures.
+    private func process(_ events: [RunEvent], dt: TimeInterval) {
+        trackGoals(events, dt: dt)
+        trackTutorial(events)
+        react(events)
     }
 
     // MARK: The loop
@@ -299,9 +315,7 @@ final class GameScene: PixelScene {
         stepTime += dt * timeScale
         while stepTime >= Self.step {
             stepTime -= Self.step
-            let events = run.step(Self.step)
-            trackGoals(events)
-            react(events)
+            process(run.step(Self.step), dt: Self.step)
         }
         sparkTimer += dt
         // A safety net: whatever happened, no rumble or grind sound unless on a rail.
@@ -423,7 +437,8 @@ final class GameScene: PixelScene {
         activeTouch = nil
         gestures = GestureReader()
         stopGrindFeedback()
-        showOverlay(title: "PAUSED", columns: [goalLines()], buttons: [
+        let lines = tutorial.map { [OverlayLine(text: $0.current?.text ?? "", color: Palette.white)] } ?? goalLines()
+        showOverlay(title: "PAUSED", columns: [lines], buttons: [
             ("RESUME", PixelColor(0x00A844), { [weak self] in self?.closePauseMenu() }),
             ("QUIT", PixelColor(0x24308C), { [weak self] in self?.leave() }),
         ])
@@ -446,11 +461,11 @@ final class GameScene: PixelScene {
 
     private func leave() {
         stopGrindFeedback()
-        router?.showMenu(.spots(city))
+        router?.showMenu(tutorial == nil ? .spots(city) : .title)
     }
 
     private func showResults(score: Int) {
-        let isBest = progress.record(score: score, at: level)
+        let isBest = tutorial == nil && progress.record(score: score, at: level)
         let columnWidth = Int(safeFrame.width / 2) - 6
         var stats: [OverlayLine] = [
             OverlayLine(text: "SCORE \(score)", color: Palette.white),
@@ -491,10 +506,61 @@ final class GameScene: PixelScene {
         showOverlay(title: "FINISH!", columns: columns, buttons: buttons)
     }
 
+    // MARK: Tutorial
+
+    private func trackTutorial(_ events: [RunEvent]) {
+        guard var tutorial else { return }
+        let done = tutorial.update(run: run, events: events)
+        // Save it every time: it remembers things between steps, like an ollie popped before landing.
+        self.tutorial = tutorial
+        guard done != nil else { return }
+        Sounds.shared.play(.letter)
+        Haptics.land(perfect: true)
+        // NICE! in the box for a moment, then the next step.
+        tutorialBox.removeAllChildren()
+        let nice = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
+        nice.ink = Palette.green
+        nice.text = "NICE!"
+        let back = SKSpriteNode(color: SKColor(white: 0, alpha: 0.6), size: CGSize(width: nice.size.width + 8, height: nice.size.height + 3))
+        back.zPosition = -1
+        tutorialBox.addChild(back)
+        tutorialBox.addChild(nice)
+        tutorialBox.run(.sequence([.wait(forDuration: 0.8), .run { [weak self] in self?.showTutorialStep() }]))
+    }
+
+    /// The step to do now, in a box under the score; or, once they're all done, the way out.
+    private func showTutorialStep() {
+        tutorialBox.removeAllChildren()
+        guard let tutorial else { return }
+        guard let step = tutorial.current else {
+            isOnBreak = true
+            stopGrindFeedback()
+            showOverlay(title: "YOU'RE READY!", columns: [[
+                OverlayLine(text: "NOW GO SKATE PORTLAND", color: Palette.white),
+                OverlayLine(text: "FIND THE LETTERS", color: Palette.lightGrey),
+                OverlayLine(text: "AND DO THE GOALS", color: Palette.lightGrey),
+            ]], buttons: [
+                ("PLAY", PixelColor(0x00A844), { [weak self] in self?.router?.play(.downtown, in: .portland) }),
+                ("MENU", PixelColor(0x24308C), { [weak self] in self?.leave() }),
+            ])
+            return
+        }
+        // One line, clear of the skater: the step number in grey, then what to do.
+        let texture = PixelFont.texture(runs: [("\(tutorial.index + 1)/\(Tutorial.steps.count) ", Palette.lightGrey),
+                                               (step.text, Palette.yellow)])
+        let text = SKSpriteNode(texture: texture)
+        text.size = texture.size()
+        let back = SKSpriteNode(color: SKColor(white: 0, alpha: 0.6),
+                                size: CGSize(width: text.size.width + 8, height: text.size.height + 3))
+        back.zPosition = -1
+        tutorialBox.addChild(back)
+        tutorialBox.addChild(text)
+    }
+
     // MARK: Goals
 
-    private func trackGoals(_ events: [RunEvent]) {
-        for goal in goalTracker.update(run: run, events: events, dt: Self.step) {
+    private func trackGoals(_ events: [RunEvent], dt: TimeInterval) {
+        for goal in goalTracker.update(run: run, events: events, dt: dt) {
             progress.complete(goal: goal, at: level)
             goalsThisRun.insert(goal.id)
             Sounds.shared.play(.letter)
@@ -531,7 +597,11 @@ final class GameScene: PixelScene {
 
     // MARK: Big moments
 
+    /// Off for now: the slow motion felt jarring. See the backlog.
+    private static let slowMotionOn = false
+
     private func slowMotion(for seconds: TimeInterval, scale: Double = 0.35) {
+        guard Self.slowMotionOn else { return }
         timeScale = scale
         slowMoLeft = max(slowMoLeft, seconds)
     }

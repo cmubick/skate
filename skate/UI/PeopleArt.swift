@@ -102,6 +102,44 @@ enum PeopleArt {
         return canvas
     }
 
+    /// A Zoobomber: a grown-up hunched over a little kids' bike, knees up by the handlebars.
+    static func miniBiker(_ person: Person, frame: Int) -> PixelCanvas {
+        var canvas = PixelCanvas(width: 20, height: 21)
+        let tire = Palette.black, frameColor = PixelColor(0xF878B8)
+        for (cx, cy) in [(4, 3), (15, 3)] {
+            for angle in stride(from: 0.0, to: 2 * Double.pi, by: 0.3) {
+                canvas.set(cx + Int((3 * cos(angle)).rounded()), cy + Int((3 * sin(angle)).rounded()), tire)
+            }
+        }
+        line(&canvas, (4, 3), (10, 3), frameColor)
+        line(&canvas, (4, 3), (7, 7), frameColor)
+        line(&canvas, (7, 7), (14, 6), frameColor)
+        line(&canvas, (10, 3), (14, 6), frameColor)
+        line(&canvas, (14, 6), (15, 3), frameColor)
+        line(&canvas, (14, 6), (14, 9), Palette.darkGrey)
+        canvas.fill(x: 13, y: 9, width: 3, height: 1, Palette.darkGrey)
+        canvas.fill(x: 6, y: 7, width: 3, height: 1, Palette.darkGrey)
+        // The rider: knees high, leaning over the bars.
+        let body = frame == 0 ? [
+            ".....tttttttt.....",
+            "...tttttttttttss..",
+            ".....tttttttt..s..",
+            ".....pppppppppp...",
+            "......ppppppppp...",
+            "...........nnn....",
+        ] : [
+            ".....tttttttt.....",
+            "...tttttttttttss..",
+            ".....tttttttt..s..",
+            ".....ppppppppp....",
+            "......pppppppqq...",
+            "..........nnnq....",
+        ]
+        let sprite = PixelSprite(person.head + body, colors: person.colors)
+        canvas.draw(sprite, x: 1, y: 6)
+        return canvas
+    }
+
     private static func line(_ canvas: inout PixelCanvas, _ from: (Int, Int), _ to: (Int, Int), _ color: PixelColor) {
         let steps = max(abs(to.0 - from.0), abs(to.1 - from.1), 1)
         for step in 0...steps {

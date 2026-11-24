@@ -8,6 +8,7 @@
 //
 
 import SpriteKit
+import StoreKit
 import UIKit
 
 /// Moves between the menus and the game. The view controller does this.
@@ -102,6 +103,19 @@ final class PixelButton: SKNode {
 }
 
 enum UIArt {
+    /// A little padlock, for things in the full game.
+    static func padlock() -> SKTexture {
+        PixelSprite([
+            "..###..",
+            ".#...#.",
+            ".#...#.",
+            "#######",
+            "###.###",
+            "###.###",
+            "#######",
+        ], colors: ["#": Palette.yellow]).texture()
+    }
+
     /// A rounded box with a light rim.
     static func box(width: Int, height: Int, fill: PixelColor) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
@@ -129,7 +143,13 @@ final class MenuScene: PixelScene {
         case cities
         case spots(City)
         case builder
+        /// The full game: coming soon, with a link to the tip jar.
+        case fullGame
+        case tips
     }
+
+    /// What the tip jar says after a purchase.
+    private var tipMessage = ""
 
     private(set) var page: Page
     private let progress = Progress.shared
@@ -205,6 +225,8 @@ final class MenuScene: PixelScene {
         case .cities: buildCities()
         case .spots(let city): buildSpots(city)
         case .builder: buildBuilder()
+        case .fullGame: buildFullGame()
+        case .tips: buildTips()
         }
     }
 
@@ -278,8 +300,11 @@ final class MenuScene: PixelScene {
         let buttonX = safe.minX + safe.width * 0.68
         label("SKATE", at: CGPoint(x: buttonX, y: safe.maxY - 10), color: Palette.yellow, scale: 2)
         label("TUESDAY GAMES", at: CGPoint(x: buttonX, y: safe.maxY - 25), color: Palette.white)
-        button("PLAY", at: CGPoint(x: buttonX, y: 42), minWidth: 64, color: PixelColor(0x00A844)) { [weak self] in
+        button("PLAY", at: CGPoint(x: buttonX, y: 58), minWidth: 64, color: PixelColor(0x00A844)) { [weak self] in
             self?.show(.cities)
+        }
+        button("TUTORIAL", at: CGPoint(x: buttonX, y: 42), minWidth: 64) { [weak self] in
+            self?.router?.play(.tutorial, in: .portland)
         }
         button("SKATER", at: CGPoint(x: buttonX, y: 26), minWidth: 64) { [weak self] in
             self?.show(.builder)
@@ -314,9 +339,93 @@ final class MenuScene: PixelScene {
                 self?.show(.spots(city))
             }
         } else {
+            // Locked: part of the full game, which isn't out yet.
+            let lock = SKSpriteNode(texture: UIArt.padlock())
+            lock.anchorPoint = CGPoint(x: 1, y: 0.5)
+            let comingWidth = CGFloat(PixelFont.width(of: "COMING SOON"))
+            lock.position = CGPoint(x: (safe.midX - comingWidth / 2 - 4).rounded(), y: safe.midY - 8)
+            content.addChild(lock)
             label("COMING SOON", at: CGPoint(x: safe.midX, y: safe.midY - 8), color: Palette.yellow)
+            label("IN THE FULL GAME", at: CGPoint(x: safe.midX, y: safe.midY - 19), color: PixelColor(0x9C9C9C))
+            button("FULL GAME", at: CGPoint(x: safe.maxX - 34, y: safe.minY + 12), minWidth: 56, color: PixelColor(0x8C38C8)) { [weak self] in
+                self?.show(.fullGame)
+            }
         }
         button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(.title) }
+    }
+
+    // MARK: Full game and tips
+
+    private func buildFullGame() {
+        let safe = safeFrame
+        panel(CGRect(x: safe.minX, y: safe.minY + 2, width: safe.width, height: safe.height - 2))
+        label("FULL GAME", at: CGPoint(x: safe.midX, y: safe.maxY - 8), color: Palette.yellow)
+        let lines = [
+            ("8 MORE CITIES TO SKATE:", Palette.white),
+            ("SAN FRANCISCO, LOS ANGELES,", PixelColor(0xBCBCBC)),
+            ("NEW YORK, FRESNO, SACRAMENTO,", PixelColor(0xBCBCBC)),
+            ("AUSTIN, SEATTLE AND ASTORIA", PixelColor(0xBCBCBC)),
+        ]
+        for (index, (text, color)) in lines.enumerated() {
+            label(text, at: CGPoint(x: safe.midX, y: safe.maxY - 22 - CGFloat(index) * 10), color: color)
+        }
+        if Store.fullGameOnSale, let product = Store.shared.fullGame, !Store.shared.isUnlocked {
+            button("BUY \(product.displayPrice)", at: CGPoint(x: safe.midX, y: safe.minY + 30), minWidth: 64,
+                   color: PixelColor(0x00A844)) { [weak self] in self?.buy(product) }
+        } else if Store.shared.isUnlocked {
+            label("YOU HAVE IT. THANK YOU!", at: CGPoint(x: safe.midX, y: safe.minY + 30), color: Palette.green)
+        } else {
+            label("COMING SOON FOR \(Store.fullGamePrice)", at: CGPoint(x: safe.midX, y: safe.minY + 30), color: Palette.yellow)
+        }
+        button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(.cities) }
+        button("TIP JAR", at: CGPoint(x: safe.maxX - 30, y: safe.minY + 12), minWidth: 48, color: PixelColor(0x00A844)) { [weak self] in
+            self?.tipMessage = ""
+            self?.show(.tips)
+        }
+    }
+
+    private func buildTips() {
+        let safe = safeFrame
+        panel(CGRect(x: safe.minX, y: safe.minY + 2, width: safe.width, height: safe.height - 2))
+        label("TIP JAR", at: CGPoint(x: safe.midX, y: safe.maxY - 8), color: Palette.yellow)
+        label("TIPS ARE OPTIONAL AND", at: CGPoint(x: safe.midX, y: safe.maxY - 22), color: PixelColor(0xBCBCBC))
+        label("DON'T UNLOCK ANYTHING.", at: CGPoint(x: safe.midX, y: safe.maxY - 32), color: PixelColor(0xBCBCBC))
+        let tips = Store.shared.tips
+        let rowY = safe.midY - 4
+        if tips.isEmpty {
+            label(Store.shared.hasLoaded ? "TIPS AREN'T AVAILABLE NOW" : "LOADING...", at: CGPoint(x: safe.midX, y: rowY),
+                  color: PixelColor(0x9C9C9C))
+        } else {
+            let names = ["SMALL", "MEDIUM", "LARGE"]
+            let spacing = min(64, (safe.width - 20) / CGFloat(tips.count))
+            for (index, tip) in tips.enumerated() {
+                let x = safe.midX + (CGFloat(index) - CGFloat(tips.count - 1) / 2) * spacing
+                button(tip.displayPrice, at: CGPoint(x: x, y: rowY), minWidth: 48, color: PixelColor(0x00A844)) { [weak self] in
+                    self?.buy(tip)
+                }
+                label(index < names.count ? names[index] : tip.displayName, at: CGPoint(x: x, y: rowY - 13), color: PixelColor(0x9C9C9C))
+            }
+        }
+        if !tipMessage.isEmpty {
+            label(tipMessage, at: CGPoint(x: safe.midX, y: safe.minY + 28), color: Palette.yellow)
+        }
+        button("BACK", at: CGPoint(x: safe.minX + 20, y: safe.minY + 12)) { [weak self] in self?.show(.fullGame) }
+    }
+
+    private func buy(_ product: Product) {
+        let scene = view?.window?.windowScene
+        Task { [weak self] in
+            let outcome = await Store.shared.buy(product, in: scene)
+            guard let self else { return }
+            switch outcome {
+            case .success: self.tipMessage = product.id == Store.fullGameID ? "" : "THANK YOU!"
+            case .pending: self.tipMessage = "WAITING FOR APPROVAL"
+            case .cancelled: self.tipMessage = ""
+            case .failed: self.tipMessage = "THAT DIDN'T WORK. TRY AGAIN?"
+            }
+            if outcome == .success { Sounds.shared.play(.finish) }
+            self.layoutScene()
+        }
     }
 
     private func changeCity(by step: Int) {

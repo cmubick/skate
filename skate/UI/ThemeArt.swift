@@ -65,6 +65,7 @@ enum ThemeArt {
             ], ground: street(sidewalk: .grassEdge))
         case .waterfront:
             return ThemeLook(sky: PixelColor(0x78A8F0), layers: [
+                BackdropLayer(texture: mountHood(), factor: 0.04, lift: 11),
                 BackdropLayer(texture: cityAcrossTheRiver(), factor: 0.12, lift: 11),
                 BackdropLayer(texture: river(), factor: 0.6),
             ], ground: esplanade())
@@ -203,7 +204,7 @@ enum ThemeArt {
     ///
     /// The landmarks come after a long run of plain buildings: this layer scrolls at half
     /// speed, so on Downtown they go by after the tips along the top have finished.
-    static func buildings(width: Int = 1500, height: Int = 70, landmarksAt: Int = 1070) -> SKTexture {
+    static func buildings(width: Int = 1700, height: Int = 70, landmarksAt: Int = 900) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         var generator = SeededGenerator(seed: 11)
         var x = 0
@@ -223,8 +224,13 @@ enum ThemeArt {
                           generator: &generator)
             x = landmarksAt
         }
+        // Pioneer Courthouse Square and Portlandia come by while the tips are still up:
+        // no lettering on them to get lost behind the tips.
+        x += Landmarks.pioneerSquare(&canvas, x: x)
+        x += Landmarks.portlandBuilding(&canvas, x: x)
         x += whiteStag(&canvas, x: x)
         plain()
+        x += bookstore(&canvas, x: x, generator: &generator)
         x += bigPink(&canvas, x: x, height: height)
         plain()
         x += montgomeryPark(&canvas, x: x)
@@ -251,7 +257,7 @@ enum ThemeArt {
     /// A low brick building in Old Town with the White Stag sign on the roof: PORTLAND
     /// OREGON in red on white, chaser bulbs round the edge, and the leaping stag on top.
     /// Returns its width.
-    private static func whiteStag(_ canvas: inout PixelCanvas, x: Int) -> Int {
+    static func whiteStag(_ canvas: inout PixelCanvas, x: Int) -> Int {
         // Low enough that the sign and stag pass under the score along the top of the screen.
         let w = 52, h = 8
         canvas.fill(x: x, y: 0, width: w, height: h, Palette.brick)
@@ -290,6 +296,46 @@ enum ThemeArt {
         let stagX = signX + (signW - stag.width) / 2, stagY = signY + signH - 1
         canvas.draw(outline, x: stagX + 1, y: stagY - 1)
         canvas.draw(stag, x: stagX, y: stagY)
+        return w
+    }
+
+    /// A whole block of bookstore: concrete upper floors, shop windows full of books,
+    /// and a big red-and-white BOOKS sign on the front. Returns its width.
+    private static func bookstore(_ canvas: inout PixelCanvas, x: Int, generator: inout SeededGenerator) -> Int {
+        let w = 96, h = 30
+        let concrete = PixelColor(0xA4A49C), trim = PixelColor(0x74746C), stone = PixelColor(0xD8C8A0)
+        let glass = PixelColor(0x1C2430)
+        canvas.fill(x: x, y: 0, width: w, height: h, concrete)
+        canvas.fill(x: x, y: h - 2, width: w, height: 2, trim)
+        canvas.fill(x: x, y: 0, width: 1, height: h, trim)
+        // Upper floors.
+        for wy in stride(from: 14, to: h - 3, by: 5) {
+            for wx in stride(from: x + 4, to: x + w - 4, by: 6) { canvas.fill(x: wx, y: wy, width: 4, height: 3, glass) }
+        }
+        // The shop floor: stone, and big windows with rows of book spines inside.
+        canvas.fill(x: x, y: 0, width: w, height: 12, stone)
+        canvas.fill(x: x, y: 11, width: w, height: 1, PixelColor(0xB82818))
+        let spines = [PixelColor(0xD82800), PixelColor(0x0058F8), PixelColor(0xF8B800), PixelColor(0x00A844),
+                      PixelColor(0xF0F0F0), PixelColor(0x8C38C8), PixelColor(0xF87800)]
+        for (left, right) in [(x + 3, x + 40), (x + 56, x + w - 3)] {
+            canvas.fill(x: left, y: 2, width: right - left, height: 8, glass)
+            for shelfY in [3, 6] {
+                for bx in left + 1..<right - 1 where Int.random(in: 0..<5, using: &generator) != 0 {
+                    let tall = Int.random(in: 2...3, using: &generator)
+                    canvas.fill(x: bx, y: shelfY, width: 1, height: tall, spines.randomElement(using: &generator)!)
+                }
+            }
+        }
+        // The door, under the sign.
+        canvas.fill(x: x + 43, y: 0, width: 10, height: 10, glass)
+        canvas.fill(x: x + 47, y: 0, width: 2, height: 10, trim)
+        // The sign: white with a red border and red letters, on the front of the building.
+        let text = "BOOKS"
+        let signW = SignFont.width(of: text) + 8, signH = 9
+        let signX = x + (w - signW) / 2, signY = 16
+        canvas.fill(x: signX - 1, y: signY - 1, width: signW + 2, height: signH + 2, PixelColor(0xB82818))
+        canvas.fill(x: signX, y: signY, width: signW, height: signH, Palette.white)
+        SignFont.draw(text, into: &canvas, centerX: signX + signW / 2, y: signY + 2, color: PixelColor(0xC81810))
         return w
     }
 
@@ -364,15 +410,14 @@ enum ThemeArt {
         return canvas.texture()
     }
 
-    /// Old Town: low brick and cast-iron fronts with tall arched windows, and old lamps.
-    static func oldTown(width: Int = 320, height: Int = 30) -> SKTexture {
+    /// Old Town: low brick and cast-iron fronts with tall arched windows and old lamps,
+    /// the Chinatown gate, Saturday Market's canopies, and the White Stag sign.
+    static func oldTown(width: Int = 480, height: Int = 36) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         var generator = SeededGenerator(seed: 13)
         let walls = [PixelColor(0xA84C34), PixelColor(0xE0D0A8), PixelColor(0x6C7C5C), PixelColor(0xB89C6C)]
-        var x = 0
-        while x < width {
-            let w = min(Int.random(in: 36...60, using: &generator), width - x)
-            let h = Int.random(in: 20...height, using: &generator)
+        func building(at x: Int, width w: Int) {
+            let h = Int.random(in: 20...30, using: &generator)
             let wall = walls[Int.random(in: 0..<walls.count, using: &generator)]
             canvas.fill(x: x, y: 0, width: w, height: h, wall)
             canvas.fill(x: x, y: h - 3, width: w, height: 3, wall.darker(0.7))
@@ -385,33 +430,57 @@ enum ThemeArt {
                     if Int.random(in: 0..<4, using: &generator) == 0 { canvas.fill(x: wx + 1, y: wy + 1, width: 2, height: 5, Palette.window) }
                 }
             }
-            x += w
         }
-        // Old-fashioned street lamps.
-        for lampX in stride(from: 24, to: width, by: 80) {
-            canvas.fill(x: lampX, y: 0, width: 1, height: 18, Palette.black)
-            canvas.fill(x: lampX - 1, y: 18, width: 3, height: 3, Palette.window)
-            canvas.fill(x: lampX - 1, y: 21, width: 3, height: 1, Palette.black)
+        func lamp(at x: Int) {
+            canvas.fill(x: x, y: 0, width: 1, height: 18, Palette.black)
+            canvas.fill(x: x - 1, y: 18, width: 3, height: 3, Palette.window)
+            canvas.fill(x: x - 1, y: 21, width: 3, height: 1, Palette.black)
         }
+        var x = 0
+        func buildings(until end: Int) {
+            while x < end {
+                let w = min(Int.random(in: 36...60, using: &generator), end - x)
+                building(at: x, width: w)
+                x += w
+            }
+        }
+        buildings(until: 70)
+        x += Landmarks.chinatownGate(&canvas, x: x + 4) + 8
+        buildings(until: 200)
+        lamp(at: x + 3)
+        x += Landmarks.saturdayMarket(&canvas, x: x + 8, generator: &generator) + 16
+        buildings(until: 340)
+        x += whiteStag(&canvas, x: x)
+        buildings(until: width)
+        for lampX in [30, 160, 430] { lamp(at: lampX) }
         return canvas.texture()
     }
 
     // MARK: - Backdrops: Burnside
 
-    /// The underside of the bridge: huge columns and the deck overhead.
-    static func bridgeUnderside(width: Int = 256, height: Int = 90) -> SKTexture {
+    /// The underside of the Burnside Bridge: arched concrete spans on thick piers, and
+    /// through one arch, the river and the bridge's two towers far off.
+    static func bridgeUnderside(width: Int = 384, height: Int = 90) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         let concrete = PixelColor(0x54545C), dark = PixelColor(0x3C3C44), light = PixelColor(0x6C6C74)
-        // The deck and its beams.
-        canvas.fill(x: 0, y: 34, width: width, height: height - 34, dark)
-        canvas.fill(x: 0, y: 34, width: width, height: 3, light)
-        for x in stride(from: 0, to: width, by: 32) { canvas.fill(x: x, y: 37, width: 4, height: height - 37, concrete) }
-        // Columns.
-        for x in stride(from: 20, to: width, by: 128) {
-            canvas.fill(x: x, y: 0, width: 22, height: 34, concrete)
-            canvas.fill(x: x + 18, y: 0, width: 4, height: 34, dark)
-            canvas.fill(x: x - 4, y: 30, width: 30, height: 4, light)
+        let deck = 50, span = 96, pier = 14
+        func archTop(_ x: Int) -> Int {
+            let along = Double(x % span - pier) / Double(span - pier)
+            // Low at the piers, rising to the crown in the middle.
+            return deck - 18 + Int((18 * sin(along * .pi)).rounded())
         }
+        // Through the second arch: the open river and the towers.
+        Landmarks.burnsideTowers(&canvas, left: span + pier, right: 2 * span, archTop: archTop)
+        for x in 0..<width {
+            let inPier = x % span < pier
+            let bottom = inPier ? 0 : archTop(x)
+            canvas.fill(x: x, y: bottom, width: 1, height: height - bottom, inPier ? concrete : dark)
+            if !inPier { canvas.set(x, bottom, light) }
+            if x % span == pier - 3 { canvas.fill(x: x, y: 0, width: 3, height: deck, dark) }
+        }
+        // Beams along the deck.
+        for x in stride(from: 0, to: width, by: 24) { canvas.fill(x: x, y: deck + 4, width: 3, height: height - deck - 4, concrete) }
+        canvas.fill(x: 0, y: deck, width: width, height: 2, light)
         return canvas.texture()
     }
 
@@ -451,13 +520,17 @@ enum ThemeArt {
     static func stJohnsBridge(width: Int = 512, height: Int = 84) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         let green = PixelColor(0x2C7C5C), darkGreen = PixelColor(0x1C5C44), hills = PixelColor(0x4C7C5C)
+        // Mount St. Helens far off, with the top blown off.
+        Landmarks.mountain(&canvas, left: 160, right: 300, height: 34, rock: PixelColor(0x8CA0C0), snowLine: 0.7,
+                           flatTop: 8, seed: 43)
         // Forested hills along the bottom.
         for x in 0..<width {
             let h = 10 + Int(6 * sin(Double(x) / 40) + 4 * sin(Double(x) / 13))
             canvas.fill(x: x, y: 0, width: 1, height: h, hills)
         }
-        // Deck, towers and cables.
+        // Deck, towers and cables, over Cathedral Park's gothic arches.
         let deckY = 26
+        Landmarks.cathedralArches(&canvas, x: 42, count: 4, deckY: deckY)
         canvas.fill(x: 40, y: deckY, width: 360, height: 3, darkGreen)
         for towerX in [110, 330] {
             canvas.fill(x: towerX, y: 0, width: 8, height: 80, green)
@@ -487,13 +560,19 @@ enum ThemeArt {
         return canvas.texture()
     }
 
-    /// Food carts and leafy trees.
-    static func foodCartsAndTrees(width: Int = 320, height: Int = 36) -> SKTexture {
+    /// Food carts and leafy trees, and Paul Bunyan towering over them.
+    static func foodCartsAndTrees(width: Int = 320, height: Int = 48) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         var generator = SeededGenerator(seed: 19)
         let carts = [PixelColor(0xF8B800), PixelColor(0xD82800), PixelColor(0x00A8A8), PixelColor(0xF878B8), PixelColor(0xFCFCFC), PixelColor(0x00A844)]
         var x = 4
+        var bunyanDone = false
         while x < width - 30 {
+            if !bunyanDone, x > 140 {
+                bunyanDone = true
+                x += Landmarks.paulBunyan(&canvas, x: x) + 4
+                continue
+            }
             if Int.random(in: 0..<3, using: &generator) == 0 {
                 // A tree.
                 canvas.fill(x: x + 6, y: 0, width: 3, height: 12, Palette.brown)
@@ -534,11 +613,15 @@ enum ThemeArt {
             for wy in stride(from: 3, to: h - 2, by: 4) where Bool.random(using: &generator) { canvas.set(x + w / 2, wy, color.darker(0.8)) }
             x += w + Int.random(in: 0...3, using: &generator)
         }
-        // A lift bridge with two towers, and a steel arch bridge.
+        // Big Pink, standing up over the rest.
+        canvas.fill(x: 320, y: 0, width: 10, height: 50, PixelColor(0xC8848C))
+        canvas.fill(x: 320, y: 0, width: 2, height: 50, PixelColor(0xE0A4A8))
+        for wy in stride(from: 4, to: 48, by: 3) { canvas.fill(x: 323, y: wy, width: 5, height: 1, PixelColor(0x84444C)) }
+        // The Hawthorne Bridge, Tilikum Crossing, a steel arch bridge, and OMSI.
+        Landmarks.hawthorne(&canvas, x: 50)
+        Landmarks.tilikum(&canvas, x: 172)
+        Landmarks.omsi(&canvas, x: 400)
         let steel = PixelColor(0x3C4C6C)
-        canvas.fill(x: 60, y: 0, width: 110, height: 2, steel)
-        for towerX in [80, 146] { canvas.fill(x: towerX, y: 0, width: 4, height: 22, steel) }
-        canvas.fill(x: 80, y: 20, width: 70, height: 2, steel)
         canvas.fill(x: 270, y: 4, width: 120, height: 2, steel)
         for archX in 0..<120 {
             let t = Double(archX) / 120
@@ -549,12 +632,20 @@ enum ThemeArt {
         return canvas.texture()
     }
 
-    /// The Willamette: a band of water with ripples.
-    static func river(width: Int = 192, height: Int = 12) -> SKTexture {
+    /// Mount Hood on the horizon, snow all the way down its upper slopes.
+    static func mountHood(width: Int = 600, height: Int = 34) -> SKTexture {
+        var canvas = PixelCanvas(width: width, height: height)
+        Landmarks.mountain(&canvas, left: 30, right: 250, height: height, rock: PixelColor(0x7C90B8), snowLine: 0.45, seed: 47)
+        return canvas.texture()
+    }
+
+    /// The Willamette: a band of water with ripples, and the Blueback moored in it.
+    static func river(width: Int = 960, height: Int = 12) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height, fill: PixelColor(0x2C64B8))
         var generator = SeededGenerator(seed: 29)
         canvas.fill(x: 0, y: height - 1, width: width, height: 1, PixelColor(0x5C88D0))
-        for _ in 0..<40 {
+        Landmarks.blueback(&canvas, x: 420, waterline: 2)
+        for _ in 0..<200 {
             let x = Int.random(in: 0..<width - 4, using: &generator)
             let y = Int.random(in: 0..<height - 1, using: &generator)
             canvas.fill(x: x, y: y, width: Int.random(in: 2...5, using: &generator), height: 1, PixelColor(0x88B0E8))
@@ -568,6 +659,8 @@ enum ThemeArt {
     static func forestedHills(width: Int = 512, height: Int = 80) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         let far = PixelColor(0x6C9C8C), near = PixelColor(0x3C6C4C)
+        // Mount Hood, rising over the far ridges.
+        Landmarks.mountain(&canvas, left: 340, right: 512, height: 76, rock: PixelColor(0x8CA0C0), snowLine: 0.6, seed: 53)
         for x in 0..<width {
             // Each ridge slopes down to the right, like the road.
             let ridge = 70 - (x % 256) / 5 + Int(3 * sin(Double(x) / 9))
@@ -581,6 +674,8 @@ enum ThemeArt {
             let base = max(6, 40 - (x % 192) / 6)
             for dy in 0..<6 { canvas.fill(x: x - (6 - dy) / 2, y: base + dy, width: 6 - dy, height: 1, near) }
         }
+        // Pittock Mansion up on the near ridge.
+        Landmarks.pittock(&canvas, x: 84, y: max(6, 40 - 96 / 6) - 1)
         return canvas.texture()
     }
 
@@ -623,6 +718,8 @@ enum ThemeArt {
 enum SignFont {
     private static let glyphs: [Character: [String]] = [
         "A": [".#.", "#.#", "###", "#.#", "#.#"],
+        "B": ["##.", "#.#", "##.", "#.#", "##."],
+        "S": ["###", "#..", "###", "..#", "###"],
         "D": ["##.", "#.#", "#.#", "#.#", "##."],
         "E": ["###", "#..", "##.", "#..", "###"],
         "G": ["###", "#..", "#.#", "#.#", "###"],

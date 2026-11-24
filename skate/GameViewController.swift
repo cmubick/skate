@@ -22,6 +22,11 @@ class GameViewController: UIViewController, SceneRouter {
         skView.isMultipleTouchEnabled = true
         skView.ignoresSiblingOrder = true
         view.addSubview(skView)
+        // Tips can be bought from the menus; the store loads in the background.
+        Store.shared.onChange = { [weak self] in
+            (self?.currentScene as? MenuScene)?.layoutScene()
+        }
+        Store.shared.start()
         #if DEBUG
         skView.showsFPS = true
         #endif

@@ -27,6 +27,10 @@ nonisolated enum FeatureStyle: Hashable, Sendable {
     case rail, handrail, ledge, bench, curb, fountain, tracks, funbox, barrier
     // Things in the way.
     case cone, planter, pedestrian, runner, biker, skater, dog, cart, brokenCar, car, train, penguin, goat
+    // Portland street furniture and the Zoo Bomb's own traffic.
+    case bubbler, zooTrain, miniBike
+    // Just for looking at.
+    case millEnds
     // Open manholes.
     case hole
     // Quarter pipes: roll up one and fly off the lip.
@@ -58,6 +62,10 @@ nonisolated enum FeatureStyle: Hashable, Sendable {
         case .goat: "GOAT"
         case .hole: "MANHOLE"
         case .quarterPipe: "QUARTER PIPE"
+        case .bubbler: "BUBBLER"
+        case .zooTrain: "ZOO TRAIN"
+        case .miniBike: "ZOOBOMBER"
+        case .millEnds: "MILL ENDS PARK"
         }
     }
 }
@@ -74,6 +82,8 @@ nonisolated struct Feature: Equatable, Sendable {
         case hole
         /// A ramp you roll up and launch off.
         case ramp
+        /// Scenery on the street that nothing bumps into.
+        case decor
     }
 
     var kind: Kind
@@ -97,7 +107,7 @@ nonisolated struct Feature: Equatable, Sendable {
     /// more again for things on the move. Low curbs and tracks aren't worth anything.
     /// The trick you're doing on the way over multiplies this (see `Trick.clearStyle`).
     var clearPoints: Double {
-        guard kind != .ramp, kind == .hole || !isLow else { return 0 }
+        guard kind != .ramp, kind != .decor, kind == .hole || !isLow else { return 0 }
         let size = Tuning.clearBase + Double(height) * Tuning.clearPerHeight + Double(length) * Tuning.clearPerLength
         let moving = isMoving ? Tuning.clearMovingBase + Double(abs(velocity)) / Tuning.clearMovingSpeedPerStep : 1
         return ((size * moving) / 5).rounded() * 5
@@ -200,6 +210,28 @@ nonisolated struct Feature: Equatable, Sendable {
 
     static func goat(_ lane: Lane, at x: CGFloat) -> Feature {
         Feature(kind: .block, style: .goat, lane: lane, x: x, length: 16, height: 13, velocity: -12)
+    }
+
+    // MARK: Portland
+
+    /// A Benson Bubbler: a bronze drinking fountain with four bowls. Ollie it.
+    static func bubbler(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .bubbler, lane: lane, x: x, length: 8, height: 11)
+    }
+
+    /// Mill Ends Park, the smallest park in the world: a little circle of plants. Roll right past it.
+    static func millEnds(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .decor, style: .millEnds, lane: lane, x: x, length: 10, height: 0)
+    }
+
+    /// The Washington Park & Zoo Railway's little train, chugging up toward you.
+    static func zooTrain(_ lane: Lane, at x: CGFloat) -> Feature {
+        Feature(kind: .block, style: .zooTrain, lane: lane, x: x, length: 56, height: 16, velocity: -30)
+    }
+
+    /// A Zoobomber on a little kids' bike, bombing the hill with you.
+    static func miniBike(_ lane: Lane, at x: CGFloat, speed: CGFloat = 60) -> Feature {
+        Feature(kind: .block, style: .miniBike, lane: lane, x: x, length: 16, height: 20, velocity: speed)
     }
 
     // MARK: Ramps

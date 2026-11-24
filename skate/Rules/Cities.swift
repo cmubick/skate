@@ -47,21 +47,30 @@ nonisolated extension Level {
         .cone(.front, at: 352),
         .rail(.back, at: 448, length: 80),
         .ledge(.middle, at: 608, length: 56),
-        .cone(.front, at: 720), .cone(.front, at: 768),
+        .cone(.front, at: 720),
+        // A Benson Bubbler on the sidewalk.
+        .bubbler(.back, at: 760),
+        .cone(.front, at: 768),
         .rail(.middle, at: 864, length: 104),
         .cone(.back, at: 896),
         .ledge(.back, at: 1056, length: 80),
         .cone(.front, at: 1072),
+        // Mill Ends Park, the world's smallest: too small to trip over.
+        .millEnds(.middle, at: 1080),
         // A pair of cones close together: needs a charged ollie, or a lane switch.
         .cone(.middle, at: 1216), .cone(.middle, at: 1245),
         .rail(.front, at: 1344, length: 128),
         // Two short rails with a gap: transfer from one to the other.
-        .rail(.back, at: 1536, length: 56), .rail(.back, at: 1624, length: 56),
+        .rail(.back, at: 1536, length: 56),
+        .bubbler(.front, at: 1600),
+        .rail(.back, at: 1624, length: 56),
         .planter(.middle, at: 1760),
         .ledge(.middle, at: 1888, length: 104),
         .cone(.back, at: 1904), .cone(.front, at: 1928),
         .rail(.back, at: 2096, length: 160),
-        .cone(.front, at: 2272), .cone(.front, at: 2320), .cone(.front, at: 2368),
+        .cone(.front, at: 2272), .cone(.front, at: 2320),
+        .bubbler(.middle, at: 2350),
+        .cone(.front, at: 2368),
         .rail(.middle, at: 2448, length: 80),
         .ledge(.middle, at: 2576, length: 80),
         // Cones across every lane: no way round, ollie it.
@@ -75,7 +84,7 @@ nonisolated extension Level {
         Gap(name: "DOUBLE CONE", points: 300, kind: .over(.middle, from: 1216, to: 1245)),
     ], goals: [
         Goal(id: "downtown.score", text: "SCORE 2000", kind: .score(2000)),
-        Goal(id: "downtown.letters", text: "FIND P AND O", kind: .letters),
+        Goal(id: "downtown.letters", text: "FIND 2 LETTERS", kind: .letters),
         Goal(id: "downtown.gap", text: "PIONEER GAP", kind: .gap("PIONEER GAP")),
         Goal(id: "downtown.flip", text: "FLIP A CONE", kind: .clear(.cone, style: 2)),
         Goal(id: "downtown.clean", text: "NO BAILS", kind: .noBails),
@@ -107,7 +116,7 @@ nonisolated extension Level {
         Gap(name: "FOUNTAIN GAP", points: 600, kind: .over(.back, from: 560, to: 560)),
     ], goals: [
         Goal(id: "skidmore.score", text: "SCORE 3000", kind: .score(3000)),
-        Goal(id: "skidmore.letters", text: "FIND R AND T", kind: .letters),
+        Goal(id: "skidmore.letters", text: "FIND 2 LETTERS", kind: .letters),
         Goal(id: "skidmore.gap", text: "FOUNTAIN GAP", kind: .gap("FOUNTAIN GAP")),
         Goal(id: "skidmore.grind", text: "GRIND FOUNTAIN", kind: .grind(.fountain, seconds: 1.5)),
         Goal(id: "skidmore.walker", text: "OLLIE A WALKER", kind: .clear(.pedestrian)),
@@ -143,7 +152,7 @@ nonisolated extension Level {
         Gap(name: "BURNSIDE GAP", points: 500, kind: .transfer(.back, from: 1560, to: 1660)),
     ], goals: [
         Goal(id: "burnside.score", text: "SCORE 4000", kind: .score(4000)),
-        Goal(id: "burnside.letters", text: "FIND THE L", kind: .letters),
+        Goal(id: "burnside.letters", text: "FIND THE LETTER", kind: .letters),
         Goal(id: "burnside.gap", text: "BURNSIDE GAP", kind: .gap("BURNSIDE GAP")),
         Goal(id: "burnside.manholes", text: "3 MANHOLES", kind: .clears(.hole, count: 3)),
         Goal(id: "burnside.360", text: "LAND A 360 FLIP", kind: .land(.threeSixtyFlip)),
@@ -178,7 +187,7 @@ nonisolated extension Level {
         Gap(name: "ST JOHNS GAP", points: 500, kind: .transfer(.back, from: 2050, to: 2120)),
     ], goals: [
         Goal(id: "north.score", text: "SCORE 3000", kind: .score(3000)),
-        Goal(id: "north.letters", text: "FIND THE A", kind: .letters),
+        Goal(id: "north.letters", text: "FIND THE LETTER", kind: .letters),
         Goal(id: "north.gap", text: "ST JOHNS GAP", kind: .gap("ST JOHNS GAP")),
         Goal(id: "north.cart", text: "FLIP A CART", kind: .clear(.cart, style: 2)),
         Goal(id: "north.curb", text: "GRIND A CURB", kind: .grind(.curb, seconds: 1.5)),
@@ -214,34 +223,37 @@ nonisolated extension Level {
         Gap(name: "ESPLANADE GAP", points: 400, kind: .over(.back, from: 2300, to: 2350)),
     ], goals: [
         Goal(id: "waterfront.score", text: "SCORE 4000", kind: .score(4000)),
-        Goal(id: "waterfront.letters", text: "FIND THE N", kind: .letters),
+        Goal(id: "waterfront.letters", text: "FIND THE LETTER", kind: .letters),
         Goal(id: "waterfront.gap", text: "ESPLANADE GAP", kind: .gap("ESPLANADE GAP")),
         Goal(id: "waterfront.angie", text: "OLLIE ANGIE", kind: .clear(.dog)),
         Goal(id: "waterfront.rail", text: "GRIND HANDRAIL", kind: .grind(.handrail, seconds: 1.5)),
     ])
 
-    /// Down the hill from the zoo. You keep speeding up the whole way: the hardest spot.
+    /// Down the hill from the zoo, with Zoobombers on little bikes and the zoo train.
+    /// You keep speeding up the whole way: the hardest spot.
     static let zooBomb = Level(id: "zoobomb", name: "ZOO BOMB", theme: .zooBomb, length: 3500, features: [
         .curb(.back, at: 240, length: 200),
-        .biker(.front, at: 360, speed: 45),
+        .miniBike(.front, at: 360, speed: 45),
         .penguin(.middle, at: 520),
         .barrier(.back, at: 640),
         .car(.front, at: 860),
         .goat(.middle, at: 900),
         .curb(.front, at: 1050, length: 240),
+        .zooTrain(.back, at: 1150),
         .barrier(.middle, at: 1200),
-        .biker(.back, at: 1300),
+        .miniBike(.back, at: 1300),
         .penguin(.front, at: 1500),
         .goat(.back, at: 1560),
         .barrier(.back, at: 1750, length: 48),
         .barrier(.back, at: 1830),
         .car(.middle, at: 1900),
         .curb(.back, at: 2050, length: 260),
-        .biker(.front, at: 2150),
+        .miniBike(.front, at: 2150),
         .goat(.middle, at: 2400),
         .barrier(.front, at: 2500),
         .car(.middle, at: 2700),
         .penguin(.back, at: 2800),
+        .zooTrain(.middle, at: 2950),
         .cone(.back, at: 3000), .cone(.front, at: 3020),
         .barrier(.middle, at: 3160, length: 48),
         .goat(.front, at: 3300),
@@ -251,7 +263,7 @@ nonisolated extension Level {
         Gap(name: "SUNSET GAP", points: 600, kind: .transfer(.back, from: 1750, to: 1830)),
     ], goals: [
         Goal(id: "zoobomb.score", text: "SCORE 5000", kind: .score(5000)),
-        Goal(id: "zoobomb.letters", text: "FIND THE D", kind: .letters),
+        Goal(id: "zoobomb.letters", text: "FIND THE LETTER", kind: .letters),
         Goal(id: "zoobomb.gap", text: "SUNSET GAP", kind: .gap("SUNSET GAP")),
         Goal(id: "zoobomb.car", text: "FLIP A CAR", kind: .clear(.car, style: 2)),
         Goal(id: "zoobomb.penguin", text: "OLLIE A PENGUIN", kind: .clear(.penguin)),

@@ -693,3 +693,49 @@ struct RewardTests {
         #expect(Trick.threeSixtyFlip.airTime < 0.5)
     }
 }
+
+@MainActor
+struct TutorialTests {
+    @Test func stepsGoOneAtATime() {
+        var tutorial = Tutorial()
+        var run = Run(level: Level.tutorial)
+        var done: [String] = []
+        func feed(_ events: [RunEvent]) { if let step = tutorial.update(run: run, events: events) { done.append(step.text) } }
+        // An ollie, landed.
+        feed(run.handle(.press))
+        feed(run.handle(.release(held: 0)))
+        while run.isAirborne { feed(run.step(1.0 / 120)) }
+        #expect(done == ["TAP TO OLLIE"])
+        // A lane change doesn't count yet: the next step is the high ollie.
+        feed(run.handle(.swipe(.down)))
+        #expect(done.count == 1)
+        // Hold for a high one.
+        feed(run.handle(.press))
+        for _ in 0..<120 { feed(run.step(1.0 / 120)) }
+        #expect(done.last == "HOLD TO OLLIE HIGHER")
+        #expect(tutorial.index == 2)
+    }
+
+    @Test func thePracticeStreetIsTidy() {
+        let level = Level.tutorial
+        #expect(zip(level.features, level.features.dropFirst()).allSatisfy { $0.x <= $1.x })
+        #expect(level.features.allSatisfy { $0.end < level.length && $0.lane != .middle })
+        #expect(Tutorial.steps.allSatisfy { PixelFont.width(of: "10/10 " + $0.text) <= 200 })
+    }
+}
+
+@MainActor
+struct StoreTests {
+    @Test func onlyTipsAreForSaleUntilTheOtherCitiesAreReady() {
+        #expect(!Store.fullGameOnSale)
+        #expect(Store.productIDs == Store.tipIDs)
+        #expect(Store.tipIDs == ["skate.tip.small", "skate.tip.medium", "skate.tip.large"])
+        #expect(City.all.filter { !$0.isOpen }.count == 8)
+    }
+
+    @Test func pricesAndLocksDrawInThePixelFont() {
+        for text in ["$0.99", "$2.99", "$4.99", "COMING SOON FOR $4.99", "DON'T UNLOCK ANYTHING.", "YOU'RE READY!"] {
+            #expect(text.allSatisfy { $0 == "?" || PixelFont.glyph($0) != PixelFont.glyph("?") }, "\(text)")
+        }
+    }
+}

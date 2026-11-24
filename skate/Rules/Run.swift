@@ -658,7 +658,7 @@ nonisolated struct Run: Sendable {
     private func blockingFeature(at height: CGFloat) -> Int? {
         level.features.indices.first { index in
             let feature = level.features[index]
-            guard feature.kind != .hole, feature.kind != .ramp, !feature.isLow else { return false }
+            guard feature.kind != .hole, feature.kind != .ramp, feature.kind != .decor, !feature.isLow else { return false }
             return overlaps(index) && height < feature.height - Tuning.grindSnapBelow
         }
     }
@@ -677,7 +677,7 @@ nonisolated struct Run: Sendable {
     private func landingFeature(previousHeight: CGFloat) -> Int? {
         level.features.indices.first { index in
             let feature = level.features[index]
-            guard feature.kind != .hole, feature.kind != .ramp else { return false }
+            guard feature.kind != .hole, feature.kind != .ramp, feature.kind != .decor else { return false }
             // Rails pull you in from a little above. Cones only count if you really touch them.
             let snap = feature.isGrindable ? Tuning.grindSnap : 0
             return overlaps(index)

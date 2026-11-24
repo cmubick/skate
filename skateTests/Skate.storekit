@@ -1,0 +1,72 @@
+{
+  "identifier": "5E7E1158",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "4.99",
+      "familyShareable": true,
+      "internalID": "7100000101",
+      "localizations": [
+        {
+          "description": "Every city after Portland: San Francisco, Los Angeles, New York and more.",
+          "displayName": "Full Game",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "skate.fullgame",
+      "referenceName": "Full Game",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "0.99",
+      "familyShareable": false,
+      "internalID": "7100000002",
+      "localizations": [
+        {
+          "description": "A small thank-you.",
+          "displayName": "Small tip",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "skate.tip.small",
+      "referenceName": "Small tip",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "2.99",
+      "familyShareable": false,
+      "internalID": "7100000003",
+      "localizations": [
+        {
+          "description": "A generous thank-you.",
+          "displayName": "Medium tip",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "skate.tip.medium",
+      "referenceName": "Medium tip",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "4.99",
+      "familyShareable": false,
+      "internalID": "7100000004",
+      "localizations": [
+        {
+          "description": "A very generous thank-you.",
+          "displayName": "Large tip",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "skate.tip.large",
+      "referenceName": "Large tip",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {},
+  "subscriptionGroups": [],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}
