@@ -28,6 +28,10 @@ struct SkaterLook {
     let boardGrip: SKTexture
     /// One picture of them standing on their board, for menus.
     let standing: SKTexture
+    /// The board seen a little from above, turned through a full circle in
+    /// `CharacterArt.spinSteps` steps: grip tape up, then graphic up (wheels showing).
+    let spinGripUp: [SKTexture]
+    let spinGraphicUp: [SKTexture]
 
     init(outfit: Outfit) {
         let poses = CharacterArt.poses(for: outfit)
@@ -42,6 +46,8 @@ struct SkaterLook {
         boardUnderside = board.underside.texture()
         boardGrip = board.grip.texture()
         standing = CharacterArt.standing(outfit: outfit)
+        spinGripUp = (0..<CharacterArt.spinSteps).map { CharacterArt.spin(for: outfit, step: $0, graphicUp: false).texture() }
+        spinGraphicUp = (0..<CharacterArt.spinSteps).map { CharacterArt.spin(for: outfit, step: $0, graphicUp: true).texture() }
     }
 }
 
@@ -87,7 +93,7 @@ enum CharacterArt {
 
     // MARK: Kids
 
-    private static let terryHead = [
+    static let terryHead = [
         "......cccccc......",
         ".....cccccccc.....",
         "..kkkccccccccc....",
@@ -100,7 +106,7 @@ enum CharacterArt {
     ]
 
     /// Sam has longer hair, down to the collar at the back.
-    private static let samHead = [
+    static let samHead = [
         "......cccccc......",
         ".....cccccccc.....",
         "..kkkccccccccc....",
@@ -229,9 +235,29 @@ enum CharacterArt {
 
     static func board(for outfit: Outfit) -> Board {
         let deck = PixelColor(outfit.board)
-        let colors: [Character: PixelColor] = [
+        var colors: [Character: PixelColor] = [
             "d": deck, "o": deck, "y": outfit.board.isLight ? Palette.black : Palette.yellow,
             "m": Palette.grey, "w": Palette.white, "k": Palette.darkGrey,
+        ]
+        // The PDX carpet: little orange, purple and blue shapes scattered on teal.
+        let carpet = outfit.board == .pdx
+        if carpet {
+            colors["a"] = PixelColor(0xE86838)
+            colors["b"] = PixelColor(0x7C48B8)
+            colors["c"] = PixelColor(0x68C0F0)
+        }
+        let underside = carpet ? [
+            ".oooooooooooooooooo.",
+            "oaooocoobooaoocooboo",
+            "ooboooaoocooboooaoco",
+            "ocooboooaoocooboooao",
+            ".oooooooooooooooooo.",
+        ] : [
+            ".oooooooooooooooooo.",
+            "oyyyoooooyyoooooyyyo",
+            "oyyyooooyyyyooooyyyo",
+            "oyyyoooooyyoooooyyyo",
+            ".oooooooooooooooooo.",
         ]
         return Board(
             side: PixelSprite([
@@ -246,13 +272,7 @@ enum CharacterArt {
                 ".dddddddddddddddddd.",
                 "dd................dd",
             ], colors: colors),
-            underside: PixelSprite([
-                ".oooooooooooooooooo.",
-                "oyyyoooooyyoooooyyyo",
-                "oyyyooooyyyyooooyyyo",
-                "oyyyoooooyyoooooyyyo",
-                ".oooooooooooooooooo.",
-            ], colors: colors),
+            underside: PixelSprite(underside, colors: colors),
             grip: PixelSprite([
                 ".kkkkkkkkkkkkkkkkkk.",
                 "kkkkkkkkkkkkkkkkkkkk",
@@ -261,6 +281,71 @@ enum CharacterArt {
                 ".kkkkkkkkkkkkkkkkkk.",
             ], colors: colors)
         )
+    }
+
+    /// How many pictures make a full turn of a spinning board.
+    static let spinSteps = 16
+
+    /// The board spinning flat, as if seen from a little above: a long thin board side-on,
+    /// a short fat one end-on, and everything between. `step` 0 is side-on, nose right.
+    static func spin(for outfit: Outfit, step: Int, graphicUp: Bool) -> PixelCanvas {
+        let width = 22, height = 12
+        let length = 20.0, deckWidth = 6.0, squash = 0.45
+        let angle = Double(step) / Double(spinSteps) * 2 * Double.pi
+        let deck = PixelColor(outfit.board)
+        let edge = deck.darker()
+        let top = graphicUp ? deck : PixelColor(0x2C2C2C)
+        let stripe = outfit.board.isLight ? Palette.black : Palette.yellow
+        var canvas = PixelCanvas(width: width, height: height)
+        let center = (x: Double(width) / 2, y: 6.0)
+
+        /// Where a canvas pixel lands on the board: along it, and across it.
+        func boardPoint(_ px: Int, _ py: Int, lift: Double) -> (u: Double, v: Double) {
+            let dx = Double(px) + 0.5 - center.x
+            let dy = (Double(py) + 0.5 - center.y - lift) / squash
+            return (dx * cos(angle) + dy * sin(angle), -dx * sin(angle) + dy * cos(angle))
+        }
+        func inside(_ u: Double, _ v: Double, inset: Double = 0) -> Bool {
+            let half = length / 2 - inset, side = deckWidth / 2 - inset
+            let straight = half - side
+            if abs(u) <= straight { return abs(v) <= side }
+            let du = abs(u) - straight
+            return du * du + v * v <= side * side
+        }
+        // The deck's edge, a pixel thick, then the top surface on it.
+        for py in 0..<height {
+            for px in 0..<width {
+                let below = boardPoint(px, py, lift: 0)
+                let onTop = boardPoint(px, py, lift: 1)
+                if inside(onTop.u, onTop.v) {
+                    let rim = !inside(onTop.u, onTop.v, inset: 0.9)
+                    var color = rim ? deck : top
+                    if graphicUp, !rim {
+                        if outfit.board == .pdx {
+                            // The carpet's little shapes, scattered across the deck.
+                            let cell = (Int((onTop.u + 20).rounded()) * 3 + Int((onTop.v + 10).rounded()) * 5) % 9
+                            if cell == 0 { color = PixelColor(0xE86838) }
+                            if cell == 4 { color = PixelColor(0x7C48B8) }
+                            if cell == 7 { color = PixelColor(0x68C0F0) }
+                        } else if abs(onTop.u) < 1.2 {
+                            color = stripe
+                        }
+                    }
+                    canvas.set(px, py, color)
+                } else if inside(below.u, below.v) {
+                    canvas.set(px, py, edge)
+                }
+            }
+        }
+        // Graphic up means wheels up: four of them over the trucks.
+        if graphicUp {
+            for (u, v) in [(-6.0, -2.5), (-6.0, 2.5), (6.0, -2.5), (6.0, 2.5)] {
+                let dx = u * cos(angle) - v * sin(angle)
+                let dy = (u * sin(angle) + v * cos(angle)) * squash
+                canvas.set(Int((center.x + dx).rounded(.down)), Int((center.y + 1 + dy + 1).rounded(.down)), Palette.white)
+            }
+        }
+        return canvas
     }
 
     /// The skater standing on their board, as one picture.

@@ -3,7 +3,7 @@
 //  skate
 //
 //  What's saved between launches: the skater's outfit, the city letters found,
-//  and the best score at each spot.
+//  the best score and the goals done at each spot.
 //
 
 import Foundation
@@ -39,6 +39,28 @@ final class Progress {
         var found = letters(in: city)
         guard found.insert(index).inserted else { return false }
         defaults.set(found.sorted(), forKey: "letters.\(city.id)")
+        return true
+    }
+
+    /// True once every letter of the city's name has been found.
+    func isComplete(_ city: City) -> Bool {
+        !city.letters.isEmpty && letters(in: city).count >= city.letters.count
+    }
+
+    /// Spelling PORTLAND wins the PDX carpet board.
+    var hasPDXBoard: Bool { isComplete(.portland) }
+
+    /// The goals done at a spot, by id.
+    func goalsDone(at level: Level) -> Set<String> {
+        Set(defaults.array(forKey: "goals.\(level.id)") as? [String] ?? [])
+    }
+
+    /// Saves a goal as done. Returns true if it's new.
+    @discardableResult
+    func complete(goal: Goal, at level: Level) -> Bool {
+        var done = goalsDone(at: level)
+        guard done.insert(goal.id).inserted else { return false }
+        defaults.set(done.sorted(), forKey: "goals.\(level.id)")
         return true
     }
 

@@ -7,6 +7,16 @@ The design doc is `skate-design-v0.1.md` (exported from the Claude Doc, which is
 - **Engine: SpriteKit**, same as Mahjong and Sevens (UIKit app, one `GameScene`, rules in `skate/Rules`, drawing and sound in `skate/UI`). Android comes later as a port, as Sevens did.
 - **Landscape only, big chunky pixels.** The game is at least 180 x 96 game pixels, drawn at the largest whole-number scale that fits (12x on an iPhone 18 Pro, so 218 x 100). The street fills the lower half and the skater is about a third of the screen tall. Extra room shows more street ahead and more sky (`PixelLayout` in `GameViewController.swift`). This is zoomed in from the doc's 256 x 144, so update the doc.
 - **The skater is a blocky kid** (18 px wide): yellow cap on backwards, black tee with a small white print, khakis, black shoes. The face has an outline at the back and chin, an ear, eye and mouth so it reads in profile. Final look still depends on which skaters we have.
+- **Everyone is drawn at the same size and in the same style.** Walkers, joggers and people on bikes use the skaters' heads and 18 px wide bodies (`PeopleArt.swift`), two pixels taller so a grown-up's head lines up with a kid's on a board. Other skaters and Angie on a walk already use the skater drawings. Animals (penguins, goats) stay their own size.
+- **The ollie pops the moment your thumb touches down.** Keeping it down makes gravity lighter while the board rises, up to the charged height (38 px); a tap gives the plain ollie (20 px). An up or down swipe within 0.15 s of the pop, by the same thumb, takes the ollie back (no points, no speed-up) and changes lanes. A press made in the air and still down at touchdown pops again on landing.
+- **Clearing things scores.** Getting all the way over something in the air adds points to the combo: 20 + 3 per pixel of height + 1 per pixel of length, times 1.5 and up for moving things (plus 1x per 100 px/s), times the hardest trick done on the way over (grab 1.5, kickflip/heelflip/shove-it 2, 360 flip 3). A cone is 65, a moving car 235, a manhole 35; low curbs and tracks nothing. A popup names it ("CONE +65"). The points ride the combo multiplier and are lost on a bail.
+- **Goals:** five per spot (score, letters, the spot's named gap, a trick over something, and one more). Listed before every run, announced with a banner the moment you get one, crossed out on the pause menu and the finish screen, and saved. The spot list shows a dot per goal. No clock yet: the finish line is the time limit.
+- **Named gaps,** at least one per spot, worth a fat bonus on the combo: PIONEER GAP and DOUBLE CONE (Downtown), FOUNTAIN GAP (Skidmore), BURNSIDE GAP, ST JOHNS GAP, ESPLANADE GAP, SUNSET GAP (Zoo Bomb). A gap is either "over everything from here to there in one jump" or "grind this, land a grind on that".
+- **Combo meter:** a clean landing keeps the combo open for 1.2 s (a bar under the combo). Another trick in that time keeps it going; a plain ollie doesn't count, so landing with nothing new, or letting the bar run out, banks it. Bailing loses it.
+- **Big combos** get a callout (SICK! 1000, GNARLY! 2500, RADICAL! 5000, LEGENDARY! 10000) and half a second of slow motion. Bails shake the screen.
+- **Quarter pipes** (two at Burnside): ride up one and fly off the lip about 46 px high.
+- **Spelling a city wins something.** PORTLAND unlocks the PDX carpet board. The last letter sets off a celebration (the name hops in letter by letter, slow motion, sparks), and the finish screen of that run shows it again.
+- **360 flip takes 0.46 s,** still the longest trick (shove-it 0.34, kickflip 0.32).
 - **Swipe sideways on the ground to ollie straight into a flip**: left is a kickflip, right a heelflip. Swipes in the air still do every flip. Not in the doc yet.
 - **Text uses a 5 x 7 pixel font**, about twice the old size.
 - **Working name "Skate"**, bundle ID `com.tuesdaygames.skate`. The real title is still open.
@@ -24,8 +34,7 @@ Built so far: six Portland spots (`Rules/Cities.swift`), menus (title, city pick
 
 To do:
 
-- [ ] **Play it on a real phone** and tune `Tuning.swift`: tap/hold split (0.12 s), swipe distance (30 pt), ollie heights, gravity, speeds, grind snap. The simulator can't judge feel or haptics.
-- [ ] **Early presses in the air.** Pressing in the air and holding past 0.12 s starts a grab, so pressing early for a charged ollie just before landing bails you. Try buffering the press as an ollie instead if it bites in playtests.
+- [ ] **Play it on a real phone** and tune `Tuning.swift`: swipe distance (30 pt), the take-back window (0.15 s), ollie heights, gravity, speeds, grind snap. The simulator can't judge feel or haptics.
 - [ ] **Text size.** The 5 x 7 font is big now; the hints along the bottom nearly fill the width. Check on a phone whether the HUD wants to come down a little.
 - [ ] **Second finger.** Only the first finger counts; a tap with another finger while one is down is ignored.
 - [ ] A sound on/off control (`Sounds.shared.isMuted` is there, with no button yet).

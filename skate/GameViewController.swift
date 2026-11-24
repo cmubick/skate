@@ -50,6 +50,7 @@ class GameViewController: UIViewController, SceneRouter {
         guard let layout else { return }
         scene.router = self
         scene.pointsPerPixel = layout.pointsPerPixel
+        scene.screenPixelsPerPixel = layout.scale
         scene.safeInsets = view.safeAreaInsets
     }
 

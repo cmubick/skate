@@ -18,16 +18,20 @@ nonisolated enum Tuning {
     static let holdThreshold: TimeInterval = 0.12
     /// How far a finger has to move, in points, to count as a swipe.
     static let swipeDistance: CGFloat = 30
-    /// Holding longer than this before letting go doesn't make an ollie any higher.
-    static let maxCharge: TimeInterval = 0.5
+    /// An up or down swipe this soon after an ollie popped, by the same finger, takes the
+    /// ollie back and changes lanes instead: the swipe started with a press, which popped.
+    static let ollieCancelWindow: TimeInterval = 0.15
 
     // MARK: Jumping
 
     static let gravity: CGFloat = 440
     /// How high a tapped ollie goes.
     static let ollieHeight: CGFloat = 20
-    /// How high a fully charged ollie goes.
+    /// How high an ollie goes with the finger kept down until the top.
     static let chargedOllieHeight: CGFloat = 38
+    /// Gravity is this much lighter while the finger that popped an ollie stays down and
+    /// the board is still rising, so holding carries it up to `chargedOllieHeight`.
+    static var heldOllieGravityScale: CGFloat { ollieHeight / chargedOllieHeight }
     /// The little hop when you pop off a rail or ledge.
     static let popOffHeight: CGFloat = 14
     /// The bump up when you roll off the end of a rail.
@@ -73,6 +77,31 @@ nonisolated enum Tuning {
     /// How far above your board you can reach a letter. Higher letters need an ollie.
     static let letterReachUp: CGFloat = 16
     static let letterPoints = 100
+
+    // MARK: Combos
+
+    /// After a clean landing the combo stays open this long while you roll. Another trick
+    /// keeps it going; run out of time, or land with nothing new, and it banks.
+    static let comboLinkTime: TimeInterval = 1.2
+
+    // MARK: Quarter pipes
+
+    /// How high the lip of a quarter pipe is.
+    static let quarterPipeLip: CGFloat = 10
+    /// How high above the ground you fly off a quarter pipe.
+    static let quarterPipeAir: CGFloat = 46
+
+    // MARK: Clearing things
+
+    /// Points for getting over something in the air: a base, plus some for every pixel
+    /// of height and length. A cone is worth about 65, a car about 110.
+    static let clearBase: Double = 20
+    static let clearPerHeight: Double = 3
+    static let clearPerLength: Double = 1
+    /// Moving things are worth at least this many times more...
+    static let clearMovingBase: Double = 1.5
+    /// ...and another 1x for every this many pixels per second they're going.
+    static let clearMovingSpeedPerStep: Double = 100
 
     // MARK: Bails
 

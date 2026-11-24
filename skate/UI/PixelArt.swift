@@ -122,6 +122,20 @@ struct PixelCanvas {
         }
     }
 
+    /// Draws another canvas with its bottom-left corner at (x, y). See-through pixels are skipped.
+    mutating func draw(_ other: PixelCanvas, x: Int, y: Int) {
+        for row in 0..<other.height {
+            for column in 0..<other.width {
+                let px = x + column, py = y + row
+                guard px >= 0, px < width, py >= 0, py < height else { continue }
+                let from = ((other.height - 1 - row) * other.width + column) * 4
+                guard other.pixels[from + 3] > 0 else { continue }
+                let to = ((height - 1 - py) * width + px) * 4
+                for channel in 0..<4 { pixels[to + channel] = other.pixels[from + channel] }
+            }
+        }
+    }
+
     /// Draws a sprite with its bottom-left corner at (x, y).
     mutating func draw(_ sprite: PixelSprite, x: Int, y: Int, mirrored: Bool = false) {
         for (rowIndex, row) in sprite.rows.enumerated() {
@@ -179,6 +193,18 @@ enum PixelFont {
     static let glyphHeight = 7
     /// Space between letters.
     static let gap = 1
+    /// Two bars, for the pause button.
+    static let pauseSymbol = "\u{23F8}"
+
+    /// The biggest scale, up to `maxScale`, that fits text `width` game pixels wide into
+    /// `available` game pixels. Only scales where each font pixel is a whole number of
+    /// screen pixels, so the letters stay sharp (1.5x is 18 screen pixels at 12x).
+    static func fittingScale(width: Int, into available: CGFloat, maxScale: CGFloat, screenPixelsPerPixel: Int) -> CGFloat {
+        let steps = CGFloat(max(1, screenPixelsPerPixel))
+        guard width > 0 else { return maxScale }
+        let fit = (available * steps / CGFloat(width)).rounded(.down)
+        return max(1, min(maxScale * steps, fit)) / steps
+    }
 
     private static let glyphs: [Character: [String]] = [
         "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
@@ -226,10 +252,12 @@ enum PixelFont {
         "?": [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
         "<": ["...#", "..#.", ".#..", "#...", ".#..", "..#.", "...#"],
         ">": ["#...", ".#..", "..#.", "...#", "..#.", ".#..", "#..."],
+        // The pause symbol: two solid bars.
+        "\u{23F8}": ["##.##", "##.##", "##.##", "##.##", "##.##", "##.##", "##.##"],
         " ": ["...", "...", "...", "...", "...", "...", "..."],
     ]
 
-    private static func glyph(_ character: Character) -> [String] {
+    static func glyph(_ character: Character) -> [String] {
         glyphs[character] ?? glyphs["?"]!
     }
 

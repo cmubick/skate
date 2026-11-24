@@ -22,13 +22,44 @@ nonisolated enum Lane: Int, CaseIterable, Comparable, Sendable {
 }
 
 /// How a feature looks. Each spot has its own.
-nonisolated enum FeatureStyle: Equatable, Sendable {
+nonisolated enum FeatureStyle: Hashable, Sendable {
     // Things to grind.
     case rail, handrail, ledge, bench, curb, fountain, tracks, funbox, barrier
     // Things in the way.
     case cone, planter, pedestrian, runner, biker, skater, dog, cart, brokenCar, car, train, penguin, goat
-    // Holes in the ground.
-    case hole, waterHole
+    // Open manholes.
+    case hole
+    // Quarter pipes: roll up one and fly off the lip.
+    case quarterPipe
+
+    /// What it's called when you clear it.
+    var name: String {
+        switch self {
+        case .rail: "RAIL"
+        case .handrail: "HANDRAIL"
+        case .ledge: "LEDGE"
+        case .bench: "BENCH"
+        case .curb: "CURB"
+        case .fountain: "FOUNTAIN"
+        case .tracks: "TRACKS"
+        case .funbox: "FUNBOX"
+        case .barrier: "BARRIER"
+        case .cone: "CONE"
+        case .planter: "PLANTER"
+        case .pedestrian: "WALKER"
+        case .runner: "RUNNER"
+        case .biker: "BIKE"
+        case .skater: "SKATER"
+        case .dog: "ANGIE"
+        case .cart: "CART"
+        case .brokenCar, .car: "CAR"
+        case .train: "TRAIN"
+        case .penguin: "PENGUIN"
+        case .goat: "GOAT"
+        case .hole: "MANHOLE"
+        case .quarterPipe: "QUARTER PIPE"
+        }
+    }
 }
 
 nonisolated struct Feature: Equatable, Sendable {
@@ -41,6 +72,8 @@ nonisolated struct Feature: Equatable, Sendable {
         case block
         /// A gap in the ground. Rolling into it is a bail; ollie over it.
         case hole
+        /// A ramp you roll up and launch off.
+        case ramp
     }
 
     var kind: Kind
@@ -59,6 +92,16 @@ nonisolated struct Feature: Equatable, Sendable {
     var isMoving: Bool { velocity != 0 }
     /// Low things, like curbs and train tracks, don't stop you rolling; you can only grind them.
     var isLow: Bool { height <= Tuning.lowFeatureHeight }
+
+    /// Points for getting all the way over it in the air: more for bigger things, and
+    /// more again for things on the move. Low curbs and tracks aren't worth anything.
+    /// The trick you're doing on the way over multiplies this (see `Trick.clearStyle`).
+    var clearPoints: Double {
+        guard kind != .ramp, kind == .hole || !isLow else { return 0 }
+        let size = Tuning.clearBase + Double(height) * Tuning.clearPerHeight + Double(length) * Tuning.clearPerLength
+        let moving = isMoving ? Tuning.clearMovingBase + Double(abs(velocity)) / Tuning.clearMovingSpeedPerStep : 1
+        return ((size * moving) / 5).rounded() * 5
+    }
 
     // MARK: Things to grind
 
@@ -110,17 +153,17 @@ nonisolated struct Feature: Equatable, Sendable {
 
     /// Someone walking toward you. Too tall to ollie: go around.
     static func pedestrian(_ lane: Lane, at x: CGFloat, speed: CGFloat = 14) -> Feature {
-        Feature(kind: .block, style: .pedestrian, lane: lane, x: x, length: 8, height: 23, velocity: -speed)
+        Feature(kind: .block, style: .pedestrian, lane: lane, x: x, length: 10, height: 21, velocity: -speed)
     }
 
     /// A jogger going your way, slower than you.
     static func runner(_ lane: Lane, at x: CGFloat) -> Feature {
-        Feature(kind: .block, style: .runner, lane: lane, x: x, length: 10, height: 23, velocity: 30)
+        Feature(kind: .block, style: .runner, lane: lane, x: x, length: 12, height: 21, velocity: 30)
     }
 
-    /// A cyclist going your way. Low enough to ollie.
+    /// A cyclist going your way, rider and all as tall as you: go around.
     static func biker(_ lane: Lane, at x: CGFloat, speed: CGFloat = 50) -> Feature {
-        Feature(kind: .block, style: .biker, lane: lane, x: x, length: 18, height: 16, velocity: speed)
+        Feature(kind: .block, style: .biker, lane: lane, x: x, length: 22, height: 22, velocity: speed)
     }
 
     /// Another skater, cruising slower than you.
@@ -159,15 +202,24 @@ nonisolated struct Feature: Equatable, Sendable {
         Feature(kind: .block, style: .goat, lane: lane, x: x, length: 16, height: 13, velocity: -12)
     }
 
-    // MARK: Holes
+    // MARK: Ramps
 
-    static func hole(_ lane: Lane, at x: CGFloat, length: CGFloat = 28) -> Feature {
-        Feature(kind: .hole, style: .hole, lane: lane, x: x, length: length, height: 0)
+    /// A quarter pipe facing you: ride up it and you're launched high off the lip.
+    static func quarterPipe(_ lane: Lane, at x: CGFloat, length: CGFloat = 36) -> Feature {
+        Feature(kind: .ramp, style: .quarterPipe, lane: lane, x: x, length: length, height: Tuning.quarterPipeLip)
     }
 
-    /// A gap in the esplanade, straight down to the river.
-    static func waterHole(_ lane: Lane, at x: CGFloat, length: CGFloat = 32) -> Feature {
-        Feature(kind: .hole, style: .waterHole, lane: lane, x: x, length: length, height: 0)
+    /// How high the ramp is this far along it.
+    func rampHeight(at position: CGFloat, start: CGFloat) -> CGFloat {
+        let along = max(0, min(1, (position - start) / length))
+        return (height * along * along).rounded()
+    }
+
+    // MARK: Holes
+
+    /// An open manhole, about two feet across next to the skater.
+    static func hole(_ lane: Lane, at x: CGFloat, length: CGFloat = 14) -> Feature {
+        Feature(kind: .hole, style: .hole, lane: lane, x: x, length: length, height: 0)
     }
 }
 
@@ -202,4 +254,39 @@ nonisolated struct Level: Equatable, Sendable {
     var maxSpeed: CGFloat = Tuning.maxSpeed
     /// Show the how-to-play hints along the way.
     var showsHints = false
+    /// Named jumps worth a bonus.
+    var gaps: [Gap] = []
+    /// Things to do here, kept once done.
+    var goals: [Goal] = []
+}
+
+/// A named jump. Pull it off for a fat bonus on the combo.
+nonisolated struct Gap: Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        /// Get over everything that starts in `lane` from `from` to `to`, in one jump.
+        case over(Lane, from: CGFloat, to: CGFloat)
+        /// Grind the thing starting at `from`, then land a grind on the one starting at `to`,
+        /// without touching the ground in between.
+        case transfer(Lane, from: CGFloat, to: CGFloat)
+    }
+
+    var name: String
+    var points: Int
+    var kind: Kind
+
+    /// The features this gap is made of, by their place in the level.
+    func features(in level: Level) -> [Int] {
+        switch kind {
+        case .over(let lane, let from, let to):
+            return level.features.indices.filter {
+                let feature = level.features[$0]
+                return feature.lane == lane && feature.x >= from && feature.x <= to
+            }
+        case .transfer(let lane, let from, let to):
+            let start = level.features.indices.first { level.features[$0].lane == lane && level.features[$0].x == from }
+            let end = level.features.indices.first { level.features[$0].lane == lane && level.features[$0].x == to }
+            guard let start, let end else { return [] }
+            return [start, end]
+        }
+    }
 }

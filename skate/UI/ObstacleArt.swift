@@ -2,7 +2,7 @@
 //  ObstacleArt.swift
 //  skate
 //
-//  Everything on the street: things to grind, things in the way, holes, the
+//  Everything on the street: things to grind, things in the way, manholes, the
 //  city letters and the finish line. Moving things get two frames to walk,
 //  pedal or waddle.
 //
@@ -42,19 +42,19 @@ enum FeatureArt {
         case .planter: return one(planter(width: width, height: height))
         case .pedestrian:
             let person = Person.random(&generator)
-            return two({ walker(person, frame: $0, facingLeft: true) }, x: -1)
+            return two({ PeopleArt.walker(person, frame: $0, facingLeft: true) }, x: -4)
         case .runner:
             let person = Person.random(&generator)
-            return two({ runner(person, frame: $0) })
+            return two({ PeopleArt.runner(person, frame: $0) }, x: -3)
         case .biker:
             let person = Person.random(&generator)
-            return two({ biker(person, frame: $0) })
+            return two({ PeopleArt.biker(person, frame: $0) }, x: -1)
         case .skater:
             let outfit = Outfit(kind: Bool.random(using: &generator) ? .terry : .sam,
-                                shirt: ColorChoice.allCases.randomElement(using: &generator)!,
-                                pants: ColorChoice.allCases.randomElement(using: &generator)!,
-                                hat: Bool.random(using: &generator) ? ColorChoice.allCases.randomElement(using: &generator) : nil,
-                                board: ColorChoice.allCases.randomElement(using: &generator)!)
+                                shirt: ColorChoice.clothes.randomElement(using: &generator)!,
+                                pants: ColorChoice.clothes.randomElement(using: &generator)!,
+                                hat: Bool.random(using: &generator) ? ColorChoice.clothes.randomElement(using: &generator) : nil,
+                                board: ColorChoice.clothes.randomElement(using: &generator)!)
             return one(CharacterArt.canvasStanding(outfit: outfit), x: -4)
         case .dog: return two({ dog(frame: $0) })
         case .cart: return one(cart())
@@ -65,8 +65,8 @@ enum FeatureArt {
         case .train: return one(train(width: width))
         case .penguin: return two({ penguin(frame: $0) })
         case .goat: return two({ goat(frame: $0) })
-        case .hole: return one(hole(width: width, water: false), y: -4)
-        case .waterHole: return one(hole(width: width, water: true), y: -4)
+        case .hole: return one(manhole(width: width), y: -CGFloat(manholeHeight / 2))
+        case .quarterPipe: return one(quarterPipe(feature))
         }
     }
 
@@ -209,141 +209,6 @@ enum FeatureArt {
         return canvas
     }
 
-    /// Colors for a passer-by.
-    struct Person {
-        var skin, hair, shirt, pants: PixelColor
-
-        static func random(_ generator: inout SeededGenerator) -> Person {
-            let skins = [Palette.skin, PixelColor(0x9C5C34), PixelColor(0xF0C098), PixelColor(0x6C3C1C)]
-            let hairs = [Palette.hair, PixelColor(0x1C1008), PixelColor(0xD8A838), PixelColor(0x8C8C8C), PixelColor(0xA83C14)]
-            let shirts = [PixelColor(0xD82800), PixelColor(0x0058F8), PixelColor(0x00A844), PixelColor(0xF8B800), PixelColor(0x8C38C8), PixelColor(0xF0F0F0), PixelColor(0x00A8A8)]
-            let pants = [PixelColor(0x24489C), PixelColor(0x2C2C2C), PixelColor(0xC8A870), PixelColor(0x5C5C5C)]
-            return Person(skin: skins.randomElement(using: &generator)!, hair: hairs.randomElement(using: &generator)!,
-                          shirt: shirts.randomElement(using: &generator)!, pants: pants.randomElement(using: &generator)!)
-        }
-    }
-
-    /// Someone walking, two frames of their stride.
-    static func walker(_ person: Person, frame: Int, facingLeft: Bool) -> PixelCanvas {
-        let rows: [String] = [
-            "...hhhh...",
-            "..hhhhhh..",
-            "..hssssh..",
-            "..essssh..",
-            "..sssssh..",
-            "...ssss...",
-            "...tttt...",
-            "..tttttt..",
-            ".stttttts.",
-            ".stttttts.",
-            ".s.tttt.s.",
-            "...tttt...",
-            "...pppp...",
-            "...pppp...",
-        ] + (frame == 0 ? [
-            "..pp..pp..",
-            "..pp..pp..",
-            ".pp....pp.",
-            ".pp....pp.",
-            ".pp....pp.",
-            "pp......pp",
-            "pp......pp",
-            "nn......nn",
-            "nn......nn",
-        ] : [
-            "...pppp...",
-            "...pp.pp..",
-            "...pp.pp..",
-            "...pp.pp..",
-            "...pp.pp..",
-            "...pp.pp..",
-            "...pp.pp..",
-            "..nnn.nn..",
-            "..nnn.nn..",
-        ])
-        let sprite = PixelSprite(rows, colors: [
-            "h": person.hair, "s": person.skin, "e": Palette.black, "t": person.shirt, "p": person.pants, "n": Palette.black,
-        ])
-        var canvas = PixelCanvas(width: sprite.width, height: sprite.height)
-        canvas.draw(sprite, x: 0, y: 0, mirrored: !facingLeft)
-        return canvas
-    }
-
-    /// A jogger in shorts, leaning into it, going your way.
-    static func runner(_ person: Person, frame: Int) -> PixelCanvas {
-        let rows: [String] = [
-            ".....hhhh.",
-            "....hhhhhh",
-            "....hsssss",
-            "....hsssse",
-            "....ssssss",
-            ".....ssss.",
-            "....tttt..",
-            "...tttttt.",
-            "..stttttts",
-            "..s.tttt.s",
-            "....tttt..",
-            "....pppp..",
-            "....pppp..",
-        ] + (frame == 0 ? [
-            "...pp..pp.",
-            "..pp....pp",
-            "..ss....ss",
-            ".ss......s",
-            ".ss.......",
-            "ss........",
-            "nn........",
-            "nn....nn..",
-            "......nn..",
-        ] : [
-            "....pppp..",
-            "....pp.pp.",
-            "....ss.ss.",
-            "....ss.ss.",
-            "...ss...ss",
-            "...ss...ss",
-            "...ss...nn",
-            "..nnn.....",
-            "..nnn.....",
-        ])
-        let sprite = PixelSprite(rows, colors: [
-            "h": person.hair, "s": person.skin, "e": Palette.black, "t": person.shirt, "p": person.pants, "n": Palette.white,
-        ])
-        var canvas = PixelCanvas(width: sprite.width, height: 23)
-        canvas.draw(sprite, x: 0, y: 23 - sprite.height)
-        return canvas
-    }
-
-    /// Someone on a bike, going your way.
-    static func biker(_ person: Person, frame: Int) -> PixelCanvas {
-        var canvas = PixelCanvas(width: 20, height: 20)
-        let tire = Palette.black, frameColor = PixelColor(0xD82800)
-        for (cx, cy) in [(4, 4), (15, 4)] {
-            for angle in stride(from: 0.0, to: 2 * Double.pi, by: 0.2) {
-                canvas.set(cx + Int((4 * cos(angle)).rounded()), cy + Int((4 * sin(angle)).rounded()), tire)
-            }
-            canvas.set(cx, cy, Palette.grey)
-        }
-        // Frame: from the back wheel to the seat, the pedals and the handlebars.
-        for step in 0..<7 { canvas.set(4 + step, 4 + step / 2, frameColor); canvas.set(9 + step, 7 - step / 3 + 1, frameColor) }
-        canvas.fill(x: 8, y: 7, width: 1, height: 4, frameColor)
-        canvas.fill(x: 14, y: 7, width: 1, height: 4, frameColor)
-        canvas.fill(x: 13, y: 11, width: 3, height: 1, Palette.darkGrey)
-        canvas.fill(x: 6, y: 11, width: 4, height: 1, Palette.darkGrey)
-        // Rider.
-        canvas.fill(x: 7, y: 12, width: 5, height: 4, person.shirt)
-        canvas.fill(x: 11, y: 12, width: 3, height: 1, person.skin)
-        canvas.fill(x: 9, y: 16, width: 4, height: 3, person.skin)
-        canvas.fill(x: 9, y: 18, width: 4, height: 2, person.hair)
-        canvas.set(12, 17, Palette.black)
-        // Legs on the pedals.
-        let knee = frame == 0 ? (10, 10) : (9, 8)
-        canvas.fill(x: 7, y: 9, width: 3, height: 3, person.pants)
-        canvas.fill(x: knee.0, y: knee.1, width: 2, height: 2, person.pants)
-        canvas.fill(x: frame == 0 ? 10 : 8, y: frame == 0 ? 6 : 5, width: 2, height: 2, Palette.black)
-        return canvas
-    }
-
     /// Angie on a walk, coming toward you.
     static func dog(frame: Int) -> PixelCanvas {
         let sprite = CharacterArt.walkingDog(frame: frame)
@@ -481,19 +346,56 @@ enum FeatureArt {
     }
 
     /// A hole in the lane: dark asphalt, or a gap down to the river.
-    static func hole(width: Int, water: Bool) -> PixelCanvas {
-        var canvas = PixelCanvas(width: width, height: 8)
-        let rim = water ? PixelColor(0x6C4424) : PixelColor(0x2C2C2C)
-        canvas.fill(x: 1, y: 0, width: width - 2, height: 8, rim)
-        canvas.fill(x: 0, y: 1, width: width, height: 6, rim)
-        let inside = water ? PixelColor(0x2C64B8) : PixelColor(0x0C0C0C)
-        canvas.fill(x: 2, y: 1, width: width - 4, height: 6, inside)
-        if water {
-            for x in stride(from: 4, to: width - 6, by: 7) { canvas.fill(x: x, y: 3, width: 3, height: 1, PixelColor(0x88B0E8)) }
-        } else {
-            canvas.fill(x: 2, y: 6, width: width - 4, height: 1, PixelColor(0x1C1C1C))
-        }
+    /// An open manhole: an iron rim round a dark shaft with a ladder rung, and the cover
+    /// slid off to the side. The opening is the hole you fall in; the cover is just lying there.
+    static func manhole(width: Int) -> PixelCanvas {
+        // Seen at an angle, so a flat oval; the cover is the same disc, lying just behind.
+        let height = manholeHeight
+        let coverX = width - 2
+        var canvas = PixelCanvas(width: coverX + width, height: height + 2)
+        let iron = PixelColor(0x5C5C64), ironDark = PixelColor(0x3C3C44), ironLight = PixelColor(0x8C8C94)
+        ellipse(&canvas, x: coverX, y: 2, width: width, height: height, ironDark)
+        ellipse(&canvas, x: coverX + 1, y: 3, width: width - 2, height: height - 2, iron)
+        for gx in stride(from: coverX + 3, to: coverX + width - 3, by: 2) { canvas.set(gx, 3 + (gx / 2) % 2, ironLight) }
+        // The opening: dark rim, a lighter iron ring, the shaft and a ladder rung.
+        ellipse(&canvas, x: 0, y: 0, width: width, height: height, ironDark)
+        ellipse(&canvas, x: 1, y: 1, width: width - 2, height: height - 1, ironLight)
+        ellipse(&canvas, x: 2, y: 1, width: width - 4, height: height - 2, PixelColor(0x0C0C0C))
+        canvas.fill(x: width / 2 - 2, y: height / 2, width: 4, height: 1, Palette.grey)
         return canvas
+    }
+
+    /// How tall a manhole's oval is, in game pixels.
+    static let manholeHeight = 5
+
+    /// A concrete quarter pipe facing you, curving up to steel coping at the lip.
+    static func quarterPipe(_ feature: Feature) -> PixelCanvas {
+        let width = Int(feature.length)
+        var canvas = PixelCanvas(width: width + 3, height: Int(feature.height) + 2)
+        let concrete = PixelColor(0x9C9CA4), shade = PixelColor(0x7C7C84), face = PixelColor(0xB4B4BC)
+        for column in 0..<width {
+            let h = Int(feature.rampHeight(at: CGFloat(column) + 0.5, start: 0))
+            canvas.fill(x: column, y: 0, width: 1, height: h + 1, concrete)
+            // A light riding surface, with a shadow just under it.
+            canvas.set(column, h, face)
+            if h > 1 { canvas.set(column, h - 1, shade) }
+        }
+        // The deck behind the lip, and the coping on it.
+        canvas.fill(x: width, y: 0, width: 3, height: Int(feature.height) + 1, shade)
+        canvas.fill(x: width - 2, y: Int(feature.height) + 1, width: 5, height: 1, Palette.steel)
+        return canvas
+    }
+
+    /// A filled ellipse inside the given box.
+    private static func ellipse(_ canvas: inout PixelCanvas, x: Int, y: Int, width: Int, height: Int, _ color: PixelColor) {
+        let a = Double(width) / 2, b = Double(height) / 2
+        for row in 0..<height {
+            let dy = (Double(row) + 0.5 - b) / b
+            let half = a * (1 - dy * dy).squareRoot()
+            let left = Int((a - half).rounded())
+            let right = Int((a + half).rounded())
+            canvas.fill(x: x + left, y: y + row, width: max(0, right - left), height: 1, color)
+        }
     }
 
     static func finishLine(height: Int) -> SKTexture {

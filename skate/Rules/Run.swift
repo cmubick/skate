@@ -45,15 +45,27 @@ nonisolated enum BailReason: Equatable, Sendable {
 nonisolated enum RunEvent: Equatable, Sendable {
     case ollie(charged: Bool)
     case popOff
+    /// Flew off the lip of a quarter pipe.
+    case launched
     case trickStarted(Trick)
     case grindStarted(Trick)
     case grindSwitched(Trick)
     case grindEnded
-    case landed(points: Int, perfect: Bool)
+    /// Wheels back on the ground, clean. The combo stays open for a moment (see `Run.comboLinkLeft`).
+    case landed(perfect: Bool)
+    /// A trick done in the air was landed clean (on the ground or onto a rail).
+    case landedTrick(Trick)
+    /// The combo was counted into the score.
+    case banked(points: Int)
     case bail(BailReason)
     case laneSwitch(Lane)
     /// Picked up one of the city's letters. `index` is its place in the city's name.
     case letter(index: Int, letter: Character)
+    /// Got all the way over something in the air, doing a trick this hard (`Trick.clearStyle`).
+    /// The points go on the combo.
+    case cleared(FeatureStyle, style: Double, points: Int)
+    /// Pulled off a named gap. The points go on the combo.
+    case gap(String, points: Int)
     case finished(score: Int)
 }
 
@@ -79,18 +91,46 @@ nonisolated struct Run: Sendable {
     private var sinceTrickEnded: TimeInterval?
 
     // The finger.
-    private enum Press { case none, ground, air, grind }
+    /// What the finger that's down did when it went down: popped an ollie, pressed in
+    /// the air (a grab, or an ollie if it's still down at touchdown), or pressed on a rail.
+    private enum Press { case none, ollie, air, grind }
     private var press: Press = .none
+    /// When the last ollie popped, and the combo from just before, so an ollie that
+    /// turns out to be the start of a lane swipe can be taken back.
+    private var poppedAt: TimeInterval?
+    private var comboBeforePop = Combo()
+    private var linkBeforePop: TimeInterval?
 
     // Scoring.
     private(set) var combo = Combo()
+    /// After a clean landing the combo stays open this much longer while you roll.
+    /// Nil when there's no combo, or you're in the air or on a rail.
+    private(set) var comboLinkLeft: TimeInterval?
+    /// The combo's size at the last landing, to tell whether anything new has happened since.
+    private var comboAtLanding: (count: Int, bonus: Double)?
     private(set) var score = 0
+    /// The biggest combo banked on this run, and the tricks that made it (the last few).
     private(set) var bestCombo = 0
+    private(set) var bestComboTricks = ""
     private(set) var time: TimeInterval = 0
     private(set) var isFinished = false
 
     /// Letters picked up on this run, by their place in the city's name.
     private(set) var lettersFound: Set<Int> = []
+    /// Features the skater is passing over right now, with the hardest trick's style so far.
+    /// Touching down, grinding or bailing while over one spoils it.
+    private var passingOver: [Int: Double] = [:]
+    private var spoiled: Set<Int> = []
+    /// Everything cleared since leaving the ground, the gaps done on this jump, and the
+    /// rail just left behind, for the named gaps.
+    private var clearedThisJump: Set<Int> = []
+    private var gapsThisJump: Set<Int> = []
+    private var leftGrind: Int?
+    /// Each gap's features, by their place in the level.
+    private let gapFeatures: [[Int]]
+    private let inGaps: Set<Int>
+    /// Tricks done since leaving the ground, reported once they're landed.
+    private var tricksThisJump: [Trick] = []
     /// When each moving feature came on screen and started moving.
     private var startedMoving: [TimeInterval?]
 
@@ -100,6 +140,8 @@ nonisolated struct Run: Sendable {
         lane = level.startLane
         drawnLane = CGFloat(level.startLane.rawValue)
         startedMoving = Array(repeating: nil, count: level.features.count)
+        gapFeatures = level.gaps.map { $0.features(in: level) }
+        inGaps = Set(gapFeatures.joined())
     }
 
     /// Where a feature starts right now. Moving things stay put until they come on screen.
@@ -108,9 +150,6 @@ nonisolated struct Run: Sendable {
         guard let start = startedMoving[index] else { return feature.x }
         return feature.x + feature.velocity * CGFloat(time - start)
     }
-
-    /// True while the finger is down on the ground, winding up an ollie.
-    var isCharging: Bool { press == .ground && state == .rolling }
 
     var isAirborne: Bool { state == .airborne }
 
@@ -127,7 +166,10 @@ nonisolated struct Run: Sendable {
         switch gesture {
         case .press:
             switch state {
-            case .rolling: press = .ground
+            case .rolling:
+                // Pop straight away. Keeping the finger down carries the ollie higher.
+                press = .ollie
+                ollie(events: &events)
             case .airborne: press = .air
             case .grinding: press = .grind
             case .bailed: press = .none
@@ -145,12 +187,13 @@ nonisolated struct Run: Sendable {
             press = .none
             switch state {
             case .rolling:
-                // A press that started in the air and lifted after landing still ollies,
-                // so tapping a little early isn't punished.
-                let charge = pressed == .ground ? held : 0
-                ollie(charge: charge, events: &events)
+                // Any ollie this finger asked for has already happened.
+                break
             case .airborne:
-                if isHoldingGrab {
+                if pressed == .ollie {
+                    // Full gravity again from here: the ollie stops climbing soon.
+                    break
+                } else if isHoldingGrab {
                     releaseGrab(held: held)
                 } else if pressed == .air, airTrick == nil {
                     startAirTrick(.grab, duration: Trick.grab.airTime, events: &events)
@@ -162,7 +205,12 @@ nonisolated struct Run: Sendable {
             }
 
         case .swipe(let direction):
+            let pressed = press
             press = .none
+            if pressed == .ollie, direction == .up || direction == .down, takeBackOllie() {
+                switchLane(to: direction == .up ? lane.up : lane.down, events: &events)
+                return events
+            }
             switch state {
             case .rolling:
                 switch direction {
@@ -170,7 +218,7 @@ nonisolated struct Run: Sendable {
                 case .down: switchLane(to: lane.down, events: &events)
                 case .left, .right:
                     // A flip straight off the ground, in one swipe: pop and flip together.
-                    ollie(charge: 0, events: &events)
+                    ollie(events: &events)
                     startAirTrick(Trick.flip(for: direction), events: &events)
                 }
             case .airborne:
@@ -189,7 +237,13 @@ nonisolated struct Run: Sendable {
                     events.append(.grindSwitched(next))
                 }
             case .bailed:
-                break
+                // Down on the ground: scramble into the next lane and get straight back up
+                // there, instead of lying under whatever you hit.
+                guard height == 0, direction == .up || direction == .down,
+                      let next = direction == .up ? lane.up : lane.down else { break }
+                lane = next
+                events.append(.laneSwitch(next))
+                if blockingFeature(at: 0) == nil, !isOverHole { getUp() }
             }
         }
         return events
@@ -207,6 +261,8 @@ nonisolated struct Run: Sendable {
         let glide = seconds / CGFloat(Tuning.laneSwitchTime)
         drawnLane += max(-glide, min(glide, target - drawnLane))
 
+        trackClearing(events: &events)
+
         // Moving things start moving once they're about to come on screen.
         for index in level.features.indices where startedMoving[index] == nil && level.features[index].isMoving {
             if x + Tuning.movingStartDistance >= level.features[index].x { startedMoving[index] = time }
@@ -219,8 +275,15 @@ nonisolated struct Run: Sendable {
 
         switch state {
         case .rolling:
+            let before = x
             x += speed * seconds
-            if blockingFeature(at: height) != nil {
+            rideRamps(from: before, events: &events)
+            if state == .rolling, let left = comboLinkLeft {
+                if left - dt <= 0 { bankCombo(events: &events) } else { comboLinkLeft = left - dt }
+            }
+            if state != .rolling {
+                break
+            } else if blockingFeature(at: height) != nil {
                 bail(.crashed, events: &events)
             } else if isOverHole {
                 bail(.fell, events: &events)
@@ -228,7 +291,8 @@ nonisolated struct Run: Sendable {
 
         case .airborne:
             let previousHeight = height
-            verticalSpeed -= Tuning.gravity * seconds
+            let held = press == .ollie && verticalSpeed > 0
+            verticalSpeed -= Tuning.gravity * (held ? Tuning.heldOllieGravityScale : 1) * seconds
             height += verticalSpeed * seconds
             x += speed * seconds
             advanceAirTrick(dt)
@@ -243,9 +307,11 @@ nonisolated struct Run: Sendable {
                     height = feature.height
                     verticalSpeed = 0
                     finishAirTrick()
+                    reportLandedTricks(events: &events)
                     state = .grinding(feature: index, trick: .fiftyFifty)
                     combo.add(.fiftyFifty)
                     events.append(.grindStarted(.fiftyFifty))
+                    checkTransfers(onto: index, events: &events)
                 }
             } else if blockingFeature(at: height) != nil {
                 bail(.crashed, events: &events)
@@ -261,6 +327,8 @@ nonisolated struct Run: Sendable {
             x += speed * seconds
             combo.extendLast(by: trick.pointsPerSecond * dt)
             if x - Tuning.skaterHalfWidth > level.features[index].end {
+                startJump()
+                leftGrind = index
                 state = .airborne
                 verticalSpeed = Tuning.railEndVelocity
                 events.append(.grindEnded)
@@ -276,9 +344,7 @@ nonisolated struct Run: Sendable {
             let left = remaining - dt
             // Don't get up in the middle of a cone, or in a hole.
             if left <= 0, height == 0, blockingFeature(at: 0) == nil, !isOverHole {
-                state = .rolling
-                speed = Tuning.speedAfterBail
-                verticalSpeed = 0
+                getUp()
             } else {
                 state = .bailed(remaining: left)
             }
@@ -287,7 +353,7 @@ nonisolated struct Run: Sendable {
         collectLetters(events: &events)
 
         if x >= level.length {
-            if state == .rolling { bank(perfect: false) }
+            if state == .rolling { bankCombo(events: &events) }
             isFinished = true
             events.append(.finished(score: score))
         }
@@ -296,19 +362,49 @@ nonisolated struct Run: Sendable {
 
     // MARK: Moves
 
-    private mutating func ollie(charge: TimeInterval, events: inout [RunEvent]) {
-        let span = Tuning.maxCharge - Tuning.holdThreshold
-        let amount = CGFloat(max(0, min(1, (charge - Tuning.holdThreshold) / span)))
-        let jump = Tuning.ollieHeight + (Tuning.chargedOllieHeight - Tuning.ollieHeight) * amount
-        verticalSpeed = (2 * Tuning.gravity * jump).squareRoot()
+    /// Pops with a tapped ollie's speed. Gravity goes easy while the finger stays down.
+    private mutating func ollie(events: inout [RunEvent]) {
+        comboBeforePop = combo
+        linkBeforePop = comboLinkLeft
+        poppedAt = time
+        startJump()
+        verticalSpeed = (2 * Tuning.gravity * Tuning.ollieHeight).squareRoot()
         state = .airborne
         sinceTrickEnded = nil
-        combo.add(.ollie)
-        events.append(.ollie(charged: amount > 0))
+        // An ollie starts a combo, but doesn't keep one going: that needs a real trick.
+        if comboLinkLeft != nil {
+            comboLinkLeft = nil
+        } else {
+            combo.add(.ollie)
+        }
+        events.append(.ollie(charged: false))
+    }
+
+    /// Leaving the ground (or a rail): a fresh jump for gaps and landed tricks.
+    private mutating func startJump() {
+        clearedThisJump = []
+        gapsThisJump = []
+        tricksThisJump = []
+    }
+
+    /// Undoes an ollie that only just popped: no points for it, and the skater drops
+    /// straight back down from wherever it got to. False if it's too late.
+    private mutating func takeBackOllie() -> Bool {
+        guard state == .airborne, airTrick == nil, verticalSpeed > 0,
+              let poppedAt, time - poppedAt <= Tuning.ollieCancelWindow else { return false }
+        self.poppedAt = nil
+        combo = comboBeforePop
+        comboLinkLeft = linkBeforePop
+        verticalSpeed = 0
+        return true
     }
 
     private mutating func popOff(events: inout [RunEvent]) {
-        if case .grinding = state { events.append(.grindEnded) }
+        startJump()
+        if case .grinding(let feature, _) = state {
+            leftGrind = feature
+            events.append(.grindEnded)
+        }
         verticalSpeed = (2 * Tuning.gravity * Tuning.popOffHeight).squareRoot()
         state = .airborne
         sinceTrickEnded = nil
@@ -323,6 +419,7 @@ nonisolated struct Run: Sendable {
 
     private mutating func startAirTrick(_ trick: Trick, duration: TimeInterval? = nil, events: inout [RunEvent]) {
         airTrick = AirTrick(trick: trick, duration: duration ?? trick.airTime)
+        tricksThisJump.append(trick)
         sinceTrickEnded = nil
         combo.add(trick)
         events.append(.trickStarted(trick))
@@ -371,31 +468,94 @@ nonisolated struct Run: Sendable {
             return
         }
         let perfect = sinceTrickEnded.map { $0 <= Tuning.perfectWindow } ?? false
-        let points = bank(perfect: perfect)
+        sinceTrickEnded = nil
+        reportLandedTricks(events: &events)
+        leftGrind = nil
         state = .rolling
-        speed = min(level.maxSpeed, speed + (perfect ? Tuning.speedPerPerfectLanding : Tuning.speedPerLanding))
-        events.append(.landed(points: points, perfect: perfect))
+        // Did anything new go on the combo since the last landing?
+        let grew = comboAtLanding.map { $0.count != combo.multiplier || $0.bonus != combo.bonus } ?? !combo.isEmpty
+        if grew {
+            if perfect { combo.addBonus(Double(combo.points) * Tuning.perfectBonus) }
+            speed = min(level.maxSpeed, speed + (perfect ? Tuning.speedPerPerfectLanding : Tuning.speedPerLanding))
+        }
+        events.append(.landed(perfect: perfect && grew))
+        if combo.isEmpty {
+            comboLinkLeft = nil
+            comboAtLanding = nil
+        } else if grew {
+            // Keep it open: another trick soon keeps it going.
+            comboLinkLeft = Tuning.comboLinkTime
+            comboAtLanding = (combo.multiplier, combo.bonus)
+        } else {
+            bankCombo(events: &events)
+        }
+        // A press made just before touchdown, still down, pops again right away,
+        // so pressing a little early isn't punished.
+        if press == .air {
+            press = .ollie
+            ollie(events: &events)
+        }
     }
 
-    @discardableResult
-    private mutating func bank(perfect: Bool) -> Int {
-        let total = combo.total
-        let points = total + (perfect ? Int(Double(total) * Tuning.perfectBonus) : 0)
+    /// Counts the combo into the score.
+    private mutating func bankCombo(events: inout [RunEvent]) {
+        comboLinkLeft = nil
+        comboAtLanding = nil
+        guard !combo.isEmpty else { return }
+        let points = combo.total
         score += points
-        bestCombo = max(bestCombo, points)
+        if points > bestCombo {
+            bestCombo = points
+            bestComboTricks = combo.text(maxTricks: 2)
+        }
         combo.clear()
-        sinceTrickEnded = nil
-        return points
+        events.append(.banked(points: points))
+    }
+
+    private mutating func reportLandedTricks(events: inout [RunEvent]) {
+        for trick in tricksThisJump { events.append(.landedTrick(trick)) }
+        tricksThisJump = []
+    }
+
+    /// Riding up a quarter pipe: the board follows the ramp, and leaving the lip launches you.
+    private mutating func rideRamps(from before: CGFloat, events: inout [RunEvent]) {
+        var onRamp = false
+        for index in level.features.indices where level.features[index].kind == .ramp && level.features[index].lane == lane {
+            let ramp = level.features[index]
+            let start = position(ofFeature: index)
+            if x >= start, x < start + ramp.length {
+                height = ramp.rampHeight(at: x, start: start)
+                onRamp = true
+            } else if before < start + ramp.length, x >= start + ramp.length {
+                startJump()
+                height = ramp.height
+                state = .airborne
+                verticalSpeed = (2 * Tuning.gravity * (Tuning.quarterPipeAir - ramp.height)).squareRoot()
+                events.append(.launched)
+                return
+            }
+        }
+        if !onRamp { height = 0 }
     }
 
     private mutating func bail(_ reason: BailReason, events: inout [RunEvent]) {
         if case .grinding = state { events.append(.grindEnded) }
         state = .bailed(remaining: Tuning.bailTime)
         combo.clear()
+        comboLinkLeft = nil
+        comboAtLanding = nil
+        leftGrind = nil
+        tricksThisJump = []
         finishAirTrick()
         sinceTrickEnded = nil
         press = .none
         events.append(.bail(reason))
+    }
+
+    private mutating func getUp() {
+        state = .rolling
+        speed = Tuning.speedAfterBail
+        verticalSpeed = 0
     }
 
     private var isBailed: Bool {
@@ -416,6 +576,74 @@ nonisolated struct Run: Sendable {
         }
     }
 
+    // MARK: Clearing things
+
+    /// Watches what the skater passes over. Getting all the way past something without
+    /// touching down on it earns its clear points, times the hardest trick done over it.
+    private mutating func trackClearing(events: inout [RunEvent]) {
+        for index in level.features.indices {
+            let feature = level.features[index]
+            guard feature.clearPoints > 0 || inGaps.contains(index) else { continue }
+            if overlaps(index) {
+                let clean = state == .airborne && height >= feature.height - Tuning.grindSnapBelow
+                if clean, !spoiled.contains(index) {
+                    let style = airTrick?.trick.clearStyle ?? 1
+                    passingOver[index] = max(passingOver[index] ?? 1, style)
+                } else {
+                    passingOver[index] = nil
+                    spoiled.insert(index)
+                }
+                continue
+            }
+            spoiled.remove(index)
+            guard let style = passingOver.removeValue(forKey: index) else { continue }
+            // Only for going past it, not for it passing you.
+            guard x - Tuning.skaterHalfWidth > position(ofFeature: index) + feature.length, !isBailed else { continue }
+            clearedThisJump.insert(index)
+            let points = Int(feature.clearPoints * style)
+            if points > 0 {
+                addBonus(points)
+                events.append(.cleared(feature.style, style: style, points: points))
+            }
+        }
+        checkOverGaps(events: &events)
+    }
+
+    /// Bonus points onto the combo; straight into the score if it has just been banked.
+    private mutating func addBonus(_ points: Int) {
+        if combo.isEmpty {
+            score += points
+        } else {
+            combo.addBonus(Double(points))
+        }
+    }
+
+    // MARK: Named gaps
+
+    private mutating func checkOverGaps(events: inout [RunEvent]) {
+        for (index, gap) in level.gaps.enumerated() where !gapsThisJump.contains(index) {
+            guard case .over = gap.kind, !gapFeatures[index].isEmpty,
+                  gapFeatures[index].allSatisfy(clearedThisJump.contains) else { continue }
+            award(gap: index, events: &events)
+        }
+    }
+
+    private mutating func checkTransfers(onto feature: Int, events: inout [RunEvent]) {
+        defer { leftGrind = nil }
+        guard let leftGrind else { return }
+        for (index, gap) in level.gaps.enumerated() where !gapsThisJump.contains(index) {
+            guard case .transfer = gap.kind, gapFeatures[index] == [leftGrind, feature] else { continue }
+            award(gap: index, events: &events)
+        }
+    }
+
+    private mutating func award(gap index: Int, events: inout [RunEvent]) {
+        gapsThisJump.insert(index)
+        let gap = level.gaps[index]
+        addBonus(gap.points)
+        events.append(.gap(gap.name, points: gap.points))
+    }
+
     // MARK: Collisions
 
     private func overlaps(_ index: Int) -> Bool {
@@ -430,7 +658,7 @@ nonisolated struct Run: Sendable {
     private func blockingFeature(at height: CGFloat) -> Int? {
         level.features.indices.first { index in
             let feature = level.features[index]
-            guard feature.kind != .hole, !feature.isLow else { return false }
+            guard feature.kind != .hole, feature.kind != .ramp, !feature.isLow else { return false }
             return overlaps(index) && height < feature.height - Tuning.grindSnapBelow
         }
     }
@@ -449,7 +677,7 @@ nonisolated struct Run: Sendable {
     private func landingFeature(previousHeight: CGFloat) -> Int? {
         level.features.indices.first { index in
             let feature = level.features[index]
-            guard feature.kind != .hole else { return false }
+            guard feature.kind != .hole, feature.kind != .ramp else { return false }
             // Rails pull you in from a little above. Cones only count if you really touch them.
             let snap = feature.isGrindable ? Tuning.grindSnap : 0
             return overlaps(index)

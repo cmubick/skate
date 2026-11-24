@@ -197,29 +197,150 @@ enum ThemeArt {
         return canvas.texture()
     }
 
-    /// Brick and concrete buildings across the street, with lit windows.
-    static func buildings(width: Int = 320, height: Int = 70) -> SKTexture {
+    /// The buildings across the street: plain brick and concrete blocks with lit windows,
+    /// and three Portland landmarks among them: the White Stag sign on its rooftop,
+    /// Big Pink (the US Bancorp Tower) and Montgomery Park with its red sign.
+    ///
+    /// The landmarks come after a long run of plain buildings: this layer scrolls at half
+    /// speed, so on Downtown they go by after the tips along the top have finished.
+    static func buildings(width: Int = 1500, height: Int = 70, landmarksAt: Int = 1070) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         var generator = SeededGenerator(seed: 11)
         var x = 0
-        while x < width {
-            let w = min(Int.random(in: 40...72, using: &generator), width - x)
-            let h = Int.random(in: 30...height, using: &generator)
-            let wall = Bool.random(using: &generator) ? Palette.brick : Palette.grey
-            let trim = wall == Palette.brick ? Palette.brickDark : Palette.darkGrey
-            canvas.fill(x: x, y: 0, width: w, height: h, wall)
-            canvas.fill(x: x, y: h - 2, width: w, height: 2, trim)
-            canvas.fill(x: x, y: 0, width: 1, height: h, trim)
-            for wy in stride(from: 10, to: h - 6, by: 9) {
-                for wx in stride(from: x + 5, to: x + w - 6, by: 9) {
-                    let lit = Int.random(in: 0..<3, using: &generator) == 0
-                    canvas.fill(x: wx, y: wy, width: 4, height: 5, lit ? Palette.window : Palette.black)
-                }
+        func plain(_ count: Int = 1) {
+            for _ in 0..<count where x < width {
+                var w = Int.random(in: 40...72, using: &generator)
+                // Don't leave a sliver at the end.
+                if width - x - w < 30 { w = width - x }
+                plainBuilding(&canvas, x: x, width: w, height: Int.random(in: 30...height, using: &generator),
+                              generator: &generator)
+                x += w
             }
-            canvas.fill(x: x + w / 2 - 3, y: 0, width: 6, height: 8, Palette.black)
-            x += w
         }
+        while x < landmarksAt - 112 { plain() }
+        if x < landmarksAt {
+            plainBuilding(&canvas, x: x, width: landmarksAt - x, height: Int.random(in: 30...height, using: &generator),
+                          generator: &generator)
+            x = landmarksAt
+        }
+        x += whiteStag(&canvas, x: x)
+        plain()
+        x += bigPink(&canvas, x: x, height: height)
+        plain()
+        x += montgomeryPark(&canvas, x: x)
+        plain(4)
         return canvas.texture()
+    }
+
+    private static func plainBuilding(_ canvas: inout PixelCanvas, x: Int, width w: Int, height h: Int,
+                                      generator: inout SeededGenerator) {
+        let wall = Bool.random(using: &generator) ? Palette.brick : Palette.grey
+        let trim = wall == Palette.brick ? Palette.brickDark : Palette.darkGrey
+        canvas.fill(x: x, y: 0, width: w, height: h, wall)
+        canvas.fill(x: x, y: h - 2, width: w, height: 2, trim)
+        canvas.fill(x: x, y: 0, width: 1, height: h, trim)
+        for wy in stride(from: 10, to: h - 6, by: 9) {
+            for wx in stride(from: x + 5, to: x + w - 6, by: 9) {
+                let lit = Int.random(in: 0..<3, using: &generator) == 0
+                canvas.fill(x: wx, y: wy, width: 4, height: 5, lit ? Palette.window : Palette.black)
+            }
+        }
+        canvas.fill(x: x + w / 2 - 3, y: 0, width: 6, height: 8, Palette.black)
+    }
+
+    /// A low brick building in Old Town with the White Stag sign on the roof: PORTLAND
+    /// OREGON in red on white, chaser bulbs round the edge, and the leaping stag on top.
+    /// Returns its width.
+    private static func whiteStag(_ canvas: inout PixelCanvas, x: Int) -> Int {
+        // Low enough that the sign and stag pass under the score along the top of the screen.
+        let w = 52, h = 8
+        canvas.fill(x: x, y: 0, width: w, height: h, Palette.brick)
+        canvas.fill(x: x, y: h - 2, width: w, height: 2, Palette.brickDark)
+        canvas.fill(x: x, y: 0, width: 1, height: h, Palette.brickDark)
+        for wx in stride(from: x + 4, to: x + w - 4, by: 6) { canvas.fill(x: wx, y: 1, width: 3, height: 5, Palette.black) }
+        // The sign, on two legs.
+        let signW = 38, signH = 15
+        let signX = x + (w - signW) / 2, signY = h + 2
+        canvas.fill(x: signX + 6, y: h, width: 2, height: 2, Palette.darkGrey)
+        canvas.fill(x: signX + signW - 8, y: h, width: 2, height: 2, Palette.darkGrey)
+        canvas.fill(x: signX, y: signY, width: signW, height: signH, Palette.white)
+        for bx in stride(from: signX, to: signX + signW, by: 2) {
+            canvas.set(bx, signY, Palette.yellow)
+            canvas.set(bx, signY + signH - 1, Palette.yellow)
+        }
+        for by in stride(from: signY, to: signY + signH, by: 2) {
+            canvas.set(signX, by, Palette.yellow)
+            canvas.set(signX + signW - 1, by, Palette.yellow)
+        }
+        let red = PixelColor(0xD82818)
+        SignFont.draw("PORTLAND", into: &canvas, centerX: signX + signW / 2, y: signY + 8, color: red)
+        SignFont.draw("OREGON", into: &canvas, centerX: signX + signW / 2, y: signY + 2, color: red)
+        // The stag, leaping across the top.
+        let stag = PixelSprite([
+            "#.#..........",
+            ".#...........",
+            ".##..........",
+            "###.......#..",
+            "..#########..",
+            "..########...",
+            ".#.......##..",
+            "#.........##.",
+        ], colors: ["#": Palette.white])
+        let outline = PixelSprite(stag.rows.map { String($0) }, colors: ["#": Palette.grey])
+        let stagX = signX + (signW - stag.width) / 2, stagY = signY + signH - 1
+        canvas.draw(outline, x: stagX + 1, y: stagY - 1)
+        canvas.draw(stag, x: stagX, y: stagY)
+        return w
+    }
+
+    /// Big Pink: the US Bancorp Tower, pink granite and rose glass in tall stripes,
+    /// taller than the screen. Returns its width.
+    private static func bigPink(_ canvas: inout PixelCanvas, x: Int, height: Int) -> Int {
+        let w = 44
+        let granite = PixelColor(0xC8848C), glass = PixelColor(0x84444C), light = PixelColor(0xE0A4A8)
+        canvas.fill(x: x, y: 0, width: w, height: height, granite)
+        // Bevelled corners catch the light on one side and fall into shade on the other.
+        canvas.fill(x: x, y: 0, width: 3, height: height, light)
+        canvas.fill(x: x + w - 3, y: 0, width: 3, height: height, glass)
+        for wx in stride(from: x + 5, to: x + w - 5, by: 4) {
+            canvas.fill(x: wx, y: 10, width: 2, height: height - 10, glass)
+        }
+        for wy in stride(from: 13, to: height, by: 4) {
+            canvas.fill(x: x + 4, y: wy, width: w - 8, height: 1, granite)
+        }
+        // A tall glass lobby at street level.
+        canvas.fill(x: x + 8, y: 0, width: w - 16, height: 8, glass)
+        canvas.fill(x: x + 8, y: 8, width: w - 16, height: 1, light)
+        return w
+    }
+
+    /// Montgomery Park: a long cream block with a tower in the middle, and the red
+    /// MONTGOMERY PARK sign on a frame on the roof. Returns its width.
+    private static func montgomeryPark(_ canvas: inout PixelCanvas, x: Int) -> Int {
+        // Low and long, so the sign passes under the score along the top of the screen.
+        let w = 140, h = 18
+        let cream = PixelColor(0xE8DCC0), trim = PixelColor(0xB0A48C), window = PixelColor(0x5C6C7C)
+        canvas.fill(x: x, y: 0, width: w, height: h, cream)
+        canvas.fill(x: x, y: h - 1, width: w, height: 1, trim)
+        canvas.fill(x: x, y: 0, width: 1, height: h, trim)
+        for wy in stride(from: 4, to: h - 3, by: 3) {
+            for wx in stride(from: x + 3, to: x + w - 3, by: 3) { canvas.fill(x: wx, y: wy, width: 2, height: 2, window) }
+        }
+        // The tower.
+        let towerW = 48, towerH = 6
+        let towerX = x + (w - towerW) / 2
+        canvas.fill(x: towerX, y: h, width: towerW, height: towerH, cream)
+        canvas.fill(x: towerX, y: h + towerH - 1, width: towerW, height: 1, trim)
+        for wx in stride(from: towerX + 3, to: towerX + towerW - 3, by: 3) { canvas.fill(x: wx, y: h + 2, width: 2, height: 3, window) }
+        canvas.fill(x: x + w / 2 - 4, y: 0, width: 8, height: 6, Palette.black)
+        // The sign: red letters on a steel frame.
+        let text = "MONTGOMERY PARK"
+        let signW = SignFont.width(of: text)
+        let signX = x + (w - signW) / 2, signY = h + towerH + 2
+        canvas.fill(x: signX, y: h + towerH, width: signW, height: 1, Palette.darkGrey)
+        for px in stride(from: signX + 2, to: signX + signW, by: 8) { canvas.set(px, h + towerH + 1, Palette.darkGrey) }
+        SignFont.draw(text, into: &canvas, centerX: x + w / 2, y: signY, color: PixelColor(0xE82818))
+        return w
     }
 
     // MARK: - Backdrops: Skidmore Fountain
@@ -295,28 +416,32 @@ enum ThemeArt {
     }
 
     /// Concrete walls with graffiti, and the lip of a bowl.
-    static func skateparkWalls(width: Int = 256, height: Int = 28) -> SKTexture {
+    static func skateparkWalls(width: Int = 320, height: Int = 28) -> SKTexture {
         var canvas = PixelCanvas(width: width, height: height)
         var generator = SeededGenerator(seed: 17)
         canvas.fill(x: 0, y: 0, width: width, height: 18, PixelColor(0x7C7C84))
         canvas.fill(x: 0, y: 17, width: width, height: 1, Palette.lightGrey)
-        let paints = [Palette.yellow, Palette.orange, PixelColor(0x00A8A8), PixelColor(0xF878B8), Palette.green, Palette.white]
-        for tagX in stride(from: 6, to: width - 20, by: 30) {
-            let paint = paints[Int.random(in: 0..<paints.count, using: &generator)]
-            let w = Int.random(in: 12...20, using: &generator)
-            for column in 0..<w {
-                let h = Int.random(in: 3...8, using: &generator)
-                canvas.fill(x: tagX + column, y: 4 + Int.random(in: 0...2, using: &generator), width: 1, height: h, paint)
-            }
-            canvas.fill(x: tagX, y: 3, width: w, height: 1, paint.darker())
-        }
+        let pink = PixelColor(0xF878B8), teal = PixelColor(0x00A8A8), red = PixelColor(0xD82818)
+        // Burnside's walls: words, anarchy signs and skulls, all in spray paint.
+        Graffiti.words("SK8 OR DIE", into: &canvas, x: 4, y: 6, paint: pink, generator: &generator)
+        Graffiti.skull(into: &canvas, x: 70, y: 4, crossbones: false)
+        Graffiti.anarchy(into: &canvas, x: 84, y: 3, paint: red)
+        Graffiti.words("PDX", into: &canvas, x: 102, y: 7, paint: Palette.yellow, generator: &generator)
+        Graffiti.scribble(into: &canvas, x: 125, paint: teal, generator: &generator)
+        Graffiti.skull(into: &canvas, x: 146, y: 3, crossbones: true)
+        Graffiti.words("DIY", into: &canvas, x: 164, y: 6, paint: Palette.green, generator: &generator)
+        Graffiti.anarchy(into: &canvas, x: 186, y: 4, paint: Palette.black)
+        Graffiti.words("THRASH", into: &canvas, x: 203, y: 7, paint: Palette.orange, generator: &generator)
+        Graffiti.skull(into: &canvas, x: 300, y: 4, crossbones: false)
         // A quarter pipe rising at the back.
+        let pipe = 252
         for x in 0..<24 {
             let h = 18 + Int(Double(x * x) / 64)
-            canvas.fill(x: 200 + x, y: 0, width: 1, height: min(h, height), PixelColor(0x8C8C94))
+            canvas.fill(x: pipe + x, y: 0, width: 1, height: min(h, height), PixelColor(0x8C8C94))
         }
-        canvas.fill(x: 224, y: 0, width: 4, height: height, PixelColor(0x8C8C94))
-        canvas.fill(x: 223, y: height - 1, width: 6, height: 1, Palette.lightGrey)
+        canvas.fill(x: pipe + 24, y: 0, width: 4, height: height, PixelColor(0x8C8C94))
+        canvas.fill(x: pipe + 23, y: height - 1, width: 6, height: 1, Palette.lightGrey)
+        Graffiti.anarchy(into: &canvas, x: pipe + 6, y: 4, paint: red)
         return canvas.texture()
     }
 
@@ -491,5 +616,127 @@ enum ThemeArt {
             x += Int.random(in: 10...20, using: &generator)
         }
         return canvas.texture()
+    }
+}
+
+/// Tiny 3 x 5 capitals for signs in the backdrops (M and N are wider so they read).
+enum SignFont {
+    private static let glyphs: [Character: [String]] = [
+        "A": [".#.", "#.#", "###", "#.#", "#.#"],
+        "D": ["##.", "#.#", "#.#", "#.#", "##."],
+        "E": ["###", "#..", "##.", "#..", "###"],
+        "G": ["###", "#..", "#.#", "#.#", "###"],
+        "K": ["#.#", "#.#", "##.", "#.#", "#.#"],
+        "L": ["#..", "#..", "#..", "#..", "###"],
+        "M": ["#...#", "##.##", "#.#.#", "#...#", "#...#"],
+        "N": ["#..#", "##.#", "#.##", "#..#", "#..#"],
+        "O": ["###", "#.#", "#.#", "#.#", "###"],
+        "P": ["##.", "#.#", "##.", "#..", "#.."],
+        "R": ["##.", "#.#", "##.", "#.#", "#.#"],
+        "T": ["###", ".#.", ".#.", ".#.", ".#."],
+        "Y": ["#.#", "#.#", ".#.", ".#.", ".#."],
+        " ": ["..", "..", "..", "..", ".."],
+    ]
+
+    static func width(of text: String) -> Int {
+        let widths = text.map { glyphs[$0]?.first?.count ?? 3 }
+        return widths.reduce(0, +) + max(0, widths.count - 1)
+    }
+
+    /// Draws `text` centered on `centerX`, with its bottom at `y`.
+    static func draw(_ text: String, into canvas: inout PixelCanvas, centerX: Int, y: Int, color: PixelColor) {
+        var x = centerX - width(of: text) / 2
+        for character in text {
+            guard let rows = glyphs[character] else { x += 4; continue }
+            canvas.draw(PixelSprite(rows, colors: ["#": color]), x: x, y: y)
+            x += rows[0].count + 1
+        }
+    }
+
+    static var allGlyphs: [Character: [String]] { glyphs }
+}
+
+/// Spray paint for the skatepark walls.
+enum Graffiti {
+    /// Words in the big pixel font, outlined in black, with a few drips.
+    static func words(_ text: String, into canvas: inout PixelCanvas, x: Int, y: Int, paint: PixelColor,
+                      generator: inout SeededGenerator) {
+        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1), (1, -1)] {
+            PixelFont.draw(text, into: &canvas, x: x + dx, y: y + dy, color: Palette.black)
+        }
+        PixelFont.draw(text, into: &canvas, x: x, y: y, color: paint)
+        // Drips run down from the bottom of a few letters.
+        var cursor = x
+        for character in text.uppercased() {
+            let rows = PixelFont.glyph(character)
+            let width = rows.first?.count ?? 3
+            if let bottom = rows.last, Int.random(in: 0..<2, using: &generator) == 0 {
+                let columns = bottom.enumerated().filter { $0.element == "#" }.map(\.offset)
+                if let column = columns.randomElement(using: &generator) {
+                    let length = Int.random(in: 1...3, using: &generator)
+                    canvas.fill(x: cursor + column, y: y - length, width: 1, height: length, paint)
+                }
+            }
+            cursor += width + PixelFont.gap
+        }
+    }
+
+    /// The circled A, with the A's legs breaking out of the bottom of the circle.
+    static func anarchy(into canvas: inout PixelCanvas, x: Int, y: Int, paint: PixelColor) {
+        let center = (x: x + 6, y: y + 6)
+        for step in 0..<64 {
+            let angle = Double(step) / 64 * 2 * Double.pi
+            canvas.set(center.x + Int((5 * cos(angle)).rounded()), center.y + Int((5 * sin(angle)).rounded()), paint)
+        }
+        line(&canvas, from: (x + 6, y + 12), to: (x + 1, y), paint)
+        line(&canvas, from: (x + 6, y + 12), to: (x + 11, y), paint)
+        line(&canvas, from: (x, y + 5), to: (x + 12, y + 5), paint)
+    }
+
+    /// A white skull with black eyes and teeth, outlined; crossbones behind if asked.
+    static func skull(into canvas: inout PixelCanvas, x: Int, y: Int, crossbones: Bool) {
+        if crossbones {
+            let bone = Palette.white
+            line(&canvas, from: (x - 1, y), to: (x + 10, y + 9), bone)
+            line(&canvas, from: (x - 1, y + 9), to: (x + 10, y), bone)
+            for (bx, by) in [(x - 2, y), (x - 2, y + 9), (x + 10, y), (x + 10, y + 9)] {
+                canvas.fill(x: bx, y: by - 1, width: 2, height: 2, bone)
+            }
+        }
+        let rows = [
+            "..wwwww..",
+            ".wwwwwww.",
+            "wwwwwwwww",
+            "wkkwwwkkw",
+            "wkkwwwkkw",
+            "wwwwkwwww",
+            ".wwwwwww.",
+            "..wkwkw..",
+            "..wwwww..",
+        ]
+        let outline = PixelSprite(rows, colors: ["w": Palette.black, "k": Palette.black])
+        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+            canvas.draw(outline, x: x + dx, y: y + dy)
+        }
+        canvas.draw(PixelSprite(rows, colors: ["w": Palette.white, "k": Palette.black]), x: x, y: y)
+    }
+
+    /// A quick tag: a wiggly scrawl of paint.
+    static func scribble(into canvas: inout PixelCanvas, x: Int, paint: PixelColor, generator: inout SeededGenerator) {
+        let w = Int.random(in: 14...18, using: &generator)
+        for column in 0..<w {
+            let h = Int.random(in: 3...8, using: &generator)
+            canvas.fill(x: x + column, y: 4 + Int.random(in: 0...2, using: &generator), width: 1, height: h, paint)
+        }
+        canvas.fill(x: x, y: 3, width: w, height: 1, paint.darker())
+    }
+
+    private static func line(_ canvas: inout PixelCanvas, from: (Int, Int), to: (Int, Int), _ color: PixelColor) {
+        let steps = max(abs(to.0 - from.0), abs(to.1 - from.1), 1)
+        for step in 0...steps {
+            let t = Double(step) / Double(steps)
+            canvas.set(from.0 + Int((Double(to.0 - from.0) * t).rounded()),
+                       from.1 + Int((Double(to.1 - from.1) * t).rounded()), color)
+        }
     }
 }

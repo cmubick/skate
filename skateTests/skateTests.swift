@@ -19,12 +19,14 @@ private func street(_ features: [Feature] = [], letters: [LetterPickup] = [], le
 
 /// Steps the run until `done` is true, collecting what happened. Gives up after `limit` seconds.
 @discardableResult
-private func play(_ run: inout Run, for limit: TimeInterval = 5, until done: (Run) -> Bool) -> [RunEvent] {
+private func play(_ run: inout Run, for limit: TimeInterval = 5, until done: (Run) -> Bool,
+                  onStep: (inout Run, TimeInterval) -> Void = { _, _ in }) -> [RunEvent] {
     var events: [RunEvent] = []
     var time = 0.0
     while !done(run), time < limit {
         events += run.step(step)
         time += step
+        onStep(&run, time)
     }
     return events
 }
@@ -37,6 +39,16 @@ private var ollieTopX: CGFloat {
 
 private func tap(_ run: inout Run) -> [RunEvent] {
     run.handle(.press) + run.handle(.release(held: 0.05))
+}
+
+/// Plays on until the skater is rolling and the combo has banked.
+@discardableResult
+private func rollUntilBanked(_ run: inout Run) -> [RunEvent] {
+    play(&run) { $0.state == .rolling && $0.comboLinkLeft == nil }
+}
+
+private func banked(_ events: [RunEvent]) -> [Int] {
+    events.compactMap { if case .banked(let points) = $0 { points } else { nil } }
 }
 
 private func isBail(_ event: RunEvent) -> Bool {
@@ -112,26 +124,87 @@ struct RunTests {
         var run = Run(level: street())
         #expect(tap(&run) == [.ollie(charged: false)])
         #expect(run.isAirborne)
-        let events = play(&run) { $0.state == .rolling }
-        #expect(events.contains(.landed(points: 50, perfect: false)))
+        let events = rollUntilBanked(&run)
+        #expect(events.contains(.landed(perfect: false)))
+        #expect(banked(events) == [50])
         #expect(run.score == 50)
         #expect(run.speed > Tuning.startSpeed)
     }
 
-    @Test func chargedOllieGoesHigher() {
+    @Test func theOlliePopsTheMomentTheFingerGoesDown() {
+        var run = Run(level: street())
+        #expect(run.handle(.press) == [.ollie(charged: false)])
+        #expect(run.isAirborne)
+    }
+
+    @Test func keepingTheFingerDownGoesHigher() {
         func peak(held: TimeInterval) -> CGFloat {
             var run = Run(level: street())
             _ = run.handle(.press)
-            _ = run.handle(.release(held: held))
             var highest: CGFloat = 0
-            play(&run) { highest = max(highest, $0.height); return $0.state == .rolling }
+            var released = false
+            play(&run) { run in
+                highest = max(highest, run.height)
+                return run.state == .rolling
+            } onStep: { run, time in
+                if !released, time >= held { released = true; _ = run.handle(.release(held: held)) }
+            }
             return highest
         }
-        let tapped = peak(held: 0.05)
-        let charged = peak(held: Tuning.maxCharge)
+        let tapped = peak(held: 0)
+        let half = peak(held: 0.2)
+        let full = peak(held: 1)
         #expect(abs(tapped - Tuning.ollieHeight) < 2)
-        #expect(abs(charged - Tuning.chargedOllieHeight) < 2)
-        #expect(peak(held: 5) == charged)
+        #expect(half > tapped + 5 && half < full - 5)
+        #expect(abs(full - Tuning.chargedOllieHeight) < 2)
+    }
+
+    @Test func aQuickUpSwipeChangesLanesInsteadOfOllieing() {
+        var run = Run(level: street())
+        _ = run.handle(.press)
+        _ = run.step(0.05)
+        #expect(run.handle(.swipe(.up)) == [.laneSwitch(.back)])
+        #expect(run.combo.isEmpty)
+        let events = play(&run) { $0.state == .rolling }
+        #expect(run.lane == .back)
+        #expect(run.score == 0)
+        #expect(run.speed == Tuning.startSpeed)
+        #expect(banked(events).isEmpty)
+    }
+
+    @Test func aLateUpSwipeIsAFlipNotALaneChange() {
+        var run = Run(level: street())
+        _ = run.handle(.press)
+        _ = run.step(0.3)
+        #expect(run.handle(.swipe(.up)) == [.trickStarted(Trick.flip(for: .up))])
+        #expect(run.lane == .middle)
+    }
+
+    @Test func pressingJustBeforeTouchdownPopsAgainOnLanding() {
+        var run = Run(level: street())
+        _ = tap(&run)
+        play(&run) { $0.verticalSpeed < 0 && $0.height < 3 }
+        _ = run.handle(.press)
+        let events = play(&run) { $0.verticalSpeed > 0 && $0.height > 1 }
+        let landed = events.firstIndex(of: .landed(perfect: false))
+        let popped = events.firstIndex(of: .ollie(charged: false))
+        #expect(landed != nil && popped != nil && landed! < popped!)
+        #expect(run.isAirborne)
+    }
+
+    @Test func theRunRemembersItsBestCombo() {
+        var run = Run(level: street())
+        _ = run.handle(.swipe(.left))
+        rollUntilBanked(&run)
+        let kickflipCombo = run.bestCombo
+        #expect(kickflipCombo == (50 + 150) * 2)
+        #expect(run.bestComboTricks == "OLLIE + KICKFLIP")
+        // A smaller one after doesn't replace it.
+        _ = tap(&run)
+        rollUntilBanked(&run)
+        #expect(run.score == kickflipCombo + 50)
+        #expect(run.bestCombo == kickflipCombo)
+        #expect(run.bestComboTricks == "OLLIE + KICKFLIP")
     }
 
     @Test func kickflipLandedCleanScoresTheCombo() {
@@ -140,7 +213,7 @@ struct RunTests {
         _ = run.step(0.02)
         #expect(run.handle(.press) + run.handle(.swipe(.left)) == [.trickStarted(.kickflip)])
         let events = play(&run) { $0.state == .rolling }
-        #expect(events.contains { if case .landed(let points, _) = $0 { points >= 400 } else { false } })
+        #expect((banked(events + rollUntilBanked(&run)).first ?? 0) >= 400)
     }
 
     @Test func flippingTooLateIsABail() {
@@ -200,14 +273,10 @@ struct RunTests {
         _ = tap(&run)
         let toRail = play(&run) { if case .grinding = $0.state { true } else { false } }
         #expect(toRail.contains(.grindStarted(.fiftyFifty)))
-        let rest = play(&run) { $0.state == .rolling }
+        let rest = rollUntilBanked(&run)
         #expect(rest.contains(.grindEnded))
-        let landed = rest.compactMap { event -> Int? in
-            if case .landed(let points, _) = event { return points }
-            return nil
-        }
         // Ollie plus the grind's base and per-second points, times two.
-        #expect((landed.first ?? 0) > (50 + 100) * 2)
+        #expect((banked(rest).first ?? 0) > (50 + 100) * 2)
     }
 
     @Test func tappingOnARailPopsOffAndKeepsTheCombo() {
@@ -238,13 +307,123 @@ struct RunTests {
 
     @Test func swipingSidewaysOnTheGroundKickflips() {
         var run = Run(level: street())
-        _ = run.handle(.press)
-        #expect(run.handle(.swipe(.left)) == [.ollie(charged: false), .trickStarted(.kickflip)])
-        let events = play(&run) { $0.state == .rolling }
-        #expect(events.contains(.landed(points: (50 + 150) * 2, perfect: false)))
+        #expect(run.handle(.press) + run.handle(.swipe(.left)) == [.ollie(charged: false), .trickStarted(.kickflip)])
+        let events = rollUntilBanked(&run)
+        #expect(banked(events) == [(50 + 150) * 2])
 
         var other = Run(level: street())
         #expect(other.handle(.swipe(.right)) == [.ollie(charged: false), .trickStarted(.heelflip)])
+    }
+
+    // MARK: Clearing things
+
+    @Test func ollieingOverAConeEarnsItsPoints() {
+        let cone = Feature.cone(.middle, at: 20)
+        var run = Run(level: street([cone]))
+        _ = tap(&run)
+        let events = rollUntilBanked(&run)
+        #expect(events.contains(.cleared(.cone, style: 1, points: Int(cone.clearPoints))))
+        #expect(run.score == 50 + Int(cone.clearPoints))
+    }
+
+    @Test func biggerAndMovingThingsAndHarderTricksAreWorthMore() {
+        let cone = Feature.cone(.middle, at: 0)
+        let planter = Feature.planter(.middle, at: 0)
+        let walker = Feature.pedestrian(.middle, at: 0)
+        let car = Feature.car(.middle, at: 0)
+        let parkedCar = Feature.brokenCar(.middle, at: 0)
+        #expect(planter.clearPoints > cone.clearPoints)
+        #expect(walker.clearPoints > planter.clearPoints)
+        #expect(car.clearPoints > parkedCar.clearPoints * 1.5)
+        #expect(Trick.grab.clearStyle > Trick.ollie.clearStyle)
+        #expect(Trick.kickflip.clearStyle > Trick.grab.clearStyle)
+        #expect(Trick.threeSixtyFlip.clearStyle > Trick.kickflip.clearStyle)
+        // Low curbs and tracks aren't worth anything; manholes are, a little.
+        #expect(Feature.curb(.middle, at: 0, length: 50).clearPoints == 0)
+        #expect(Feature.hole(.middle, at: 0).clearPoints > 0)
+        #expect(Feature.hole(.middle, at: 0).clearPoints < cone.clearPoints)
+    }
+
+    @Test func aFlipOverSomethingDoublesItsPoints() {
+        let cone = Feature.cone(.middle, at: 20)
+        var run = Run(level: street([cone]))
+        let events = run.handle(.swipe(.left)) + play(&run) { $0.state != .airborne }
+        #expect(events.contains(.cleared(.cone, style: 2, points: Int(cone.clearPoints * 2))))
+    }
+
+    @Test func bailingLosesTheClearPoints() {
+        // Clear a cone, then come down on a planter.
+        var run = Run(level: street([.cone(.middle, at: 14), .planter(.middle, at: 44, length: 40)]))
+        _ = tap(&run)
+        let events = play(&run) { if case .bailed = $0.state { true } else { false } }
+        #expect(events.contains { if case .cleared = $0 { true } else { false } })
+        #expect(run.score == 0)
+    }
+
+    // MARK: Combo meter
+
+    @Test func anotherTrickSoonAfterLandingKeepsTheComboGoing() {
+        var run = Run(level: street())
+        _ = run.handle(.swipe(.left))
+        play(&run) { $0.state == .rolling }
+        #expect(run.comboLinkLeft != nil)
+        _ = run.step(0.3)
+        // An ollie on its own doesn't add to the combo; the kickflip does.
+        _ = run.handle(.swipe(.left))
+        let events = rollUntilBanked(&run)
+        #expect(banked(events) == [(50 + 150 + 150) * 3])
+    }
+
+    @Test func theComboBanksWhenTheMeterRunsOut() {
+        var run = Run(level: street())
+        _ = run.handle(.swipe(.left))
+        play(&run) { $0.state == .rolling }
+        let waiting = play(&run, for: Tuning.comboLinkTime - 0.1) { _ in false }
+        #expect(banked(waiting).isEmpty)
+        let after = play(&run, for: 0.2) { _ in false }
+        #expect(banked(after) == [400])
+    }
+
+    @Test func bailingWhileTheMeterRunsLosesTheCombo() {
+        var run = Run(level: street([.cone(.middle, at: 120)]))
+        _ = run.handle(.swipe(.left))
+        play(&run) { $0.state == .rolling }
+        let events = play(&run) { if case .bailed = $0.state { true } else { false } }
+        #expect(events.contains(.bail(.crashed)))
+        #expect(run.score == 0)
+    }
+
+    // MARK: Gaps and quarter pipes
+
+    @Test func clearingBothConesInOneJumpIsTheGap() {
+        let gap = Gap(name: "TEST GAP", points: 300, kind: .over(.middle, from: 15, to: 23))
+        var level = street([.cone(.middle, at: 15), .cone(.middle, at: 23)])
+        level.gaps = [gap]
+        var run = Run(level: level)
+        _ = tap(&run)
+        let events = rollUntilBanked(&run)
+        #expect(events.contains(.gap("TEST GAP", points: 300)))
+        #expect(banked(events).first ?? 0 > 300)
+    }
+
+    @Test func grindingFromOneRailOntoTheNextIsTheGap() {
+        let first = ollieTopX + Tuning.skaterHalfWidth
+        let second = first + 60 + 10
+        var level = street([.rail(.middle, at: first, length: 60), .rail(.middle, at: second, length: 60)])
+        level.gaps = [Gap(name: "RAIL GAP", points: 500, kind: .transfer(.middle, from: first, to: second))]
+        var run = Run(level: level)
+        _ = tap(&run)
+        let events = rollUntilBanked(&run)
+        #expect(events.contains(.gap("RAIL GAP", points: 500)))
+    }
+
+    @Test func aQuarterPipeLaunchesYouHigh() {
+        var run = Run(level: street([.quarterPipe(.middle, at: 20)]))
+        var highest: CGFloat = 0
+        let events = play(&run) { highest = max(highest, $0.height); return $0.isAirborne == false && $0.x > 100 }
+        #expect(events.contains(.launched))
+        #expect(abs(highest - Tuning.quarterPipeAir) < 2)
+        #expect(!events.contains { isBail($0) })
     }
 
     // MARK: Spots
@@ -298,6 +477,24 @@ struct RunTests {
         #expect(events.contains(.bail(.crashed)))
         // They walked toward you, so you met them before x = 400.
         #expect(run.x < 400)
+    }
+
+    @Test func afterABailASwipeTakesYouToAnotherLaneAndUp() {
+        // A runner going your way: crash into it and you'd be stuck under it.
+        var run = Run(level: street([.runner(.middle, at: 150)]))
+        play(&run, for: 10) { if case .bailed = $0.state { true } else { false } }
+        #expect(run.handle(.swipe(.up)) == [.laneSwitch(.back)])
+        #expect(run.state == .rolling)
+        #expect(run.lane == .back)
+        #expect(run.speed == Tuning.speedAfterBail)
+    }
+
+    @Test func aSwipeWhileStillTumblingThroughTheAirDoesNothing() {
+        var run = Run(level: street([.planter(.middle, at: ollieTopX, length: 60)]))
+        _ = tap(&run)
+        play(&run) { if case .bailed = $0.state { $0.height > 0 } else { false } }
+        #expect(run.handle(.swipe(.up)) == [])
+        #expect(run.lane == .middle)
     }
 
     @Test func curbsAndTracksDontStopYouButCanBeGround() {
@@ -370,8 +567,18 @@ struct CharacterTests {
         #expect(progress.bestScore(at: .downtown) == 500)
     }
 
+    @Test func longCityNamesShrinkOnlyAsMuchAsTheyNeedTo() {
+        // Short names get double size.
+        #expect(PixelFont.fittingScale(width: 50, into: 160, maxScale: 2, screenPixelsPerPixel: 12) == 2)
+        // A long one gets the biggest size that fits, in whole screen pixels.
+        let scale = PixelFont.fittingScale(width: 100, into: 160, maxScale: 2, screenPixelsPerPixel: 12)
+        #expect(scale == 19.0 / 12)
+        #expect(CGFloat(100) * scale <= 160)
+        #expect(CGFloat(100) * (scale + 1.0 / 12) > 160)
+    }
+
     @Test func artIsRectangular() {
-        for template in CharacterArt.allTemplates {
+        for template in CharacterArt.allTemplates + PeopleArt.allTemplates {
             #expect(Set(template.map(\.count)) == [18])
         }
         for kind in SkaterKind.allCases {
@@ -390,5 +597,99 @@ struct CharacterTests {
             #expect(glyph.count == PixelFont.glyphHeight)
             #expect(Set(glyph.map(\.count)).count == 1)
         }
+    }
+}
+
+@MainActor
+struct GoalTests {
+    @Test func goalsAreMetAsTheyHappen() {
+        let goals = [
+            Goal(id: "flip", text: "FLIP A CONE", kind: .clear(.cone, style: 2)),
+            Goal(id: "ollie", text: "OLLIE A CONE", kind: .clear(.cone)),
+            Goal(id: "land", text: "LAND KICKFLIP", kind: .land(.kickflip)),
+            Goal(id: "score", text: "SCORE 100", kind: .score(100)),
+            Goal(id: "clean", text: "NO BAILS", kind: .noBails),
+        ]
+        var tracker = GoalTracker(goals: goals)
+        var run = Run(level: street([.cone(.middle, at: 20)], length: 600))
+        var met: [String] = []
+        let step = 1.0 / 120
+        func advance(_ events: [RunEvent]) { met += tracker.update(run: run, events: events, dt: step).map(\.id) }
+        advance(run.handle(.swipe(.left)))
+        while !run.isFinished { advance(run.step(step)) }
+        #expect(Set(met) == ["flip", "ollie", "land", "score", "clean"])
+    }
+
+    @Test func goalsDoneBeforeArentAnnouncedAgain() {
+        let goals = [Goal(id: "score", text: "SCORE 1", kind: .score(1))]
+        var tracker = GoalTracker(goals: goals, alreadyMet: ["score"])
+        var run = Run(level: street())
+        _ = run.handle(.press)
+        let events = rollUntilBanked(&run)
+        #expect(tracker.update(run: run, events: events, dt: 0).isEmpty)
+    }
+
+    @Test func aLongEnoughGrindMeetsTheGrindGoal() {
+        let goals = [Goal(id: "grind", text: "GRIND 1S", kind: .grind(.rail, seconds: 1))]
+        var tracker = GoalTracker(goals: goals)
+        var run = Run(level: street([.rail(.middle, at: ollieTopX + Tuning.skaterHalfWidth, length: 200)]))
+        var met: [String] = []
+        let step = 1.0 / 120
+        _ = run.handle(.press)
+        _ = run.handle(.release(held: 0))
+        for _ in 0..<(4 * 120) { met += tracker.update(run: run, events: run.step(step), dt: step).map(\.id) }
+        #expect(met == ["grind"])
+    }
+
+    @Test func everyPortlandSpotHasFiveGoalsThatFitAndAGap() {
+        for level in City.portland.levels {
+            #expect(level.goals.count == 5, "\(level.name)")
+            #expect(!level.gaps.isEmpty, "\(level.name)")
+            #expect(Set(level.goals.map(\.id)).count == level.goals.count)
+            for goal in level.goals {
+                // Half the narrowest screen, so the results can show goals beside the score.
+                #expect(PixelFont.width(of: goal.text) <= 86, "\(goal.text)")
+                if case .gap(let name) = goal.kind {
+                    #expect(level.gaps.contains { $0.name == name }, "\(name)")
+                }
+            }
+            for gap in level.gaps {
+                let parts = gap.features(in: level)
+                #expect(!parts.isEmpty, "\(gap.name)")
+                if case .transfer = gap.kind {
+                    #expect(parts.count == 2 && parts.allSatisfy { level.features[$0].isGrindable }, "\(gap.name)")
+                }
+            }
+        }
+    }
+}
+
+@MainActor
+struct RewardTests {
+    @Test func spellingPortlandUnlocksThePDXBoard() throws {
+        #expect(!ColorChoice.clothes.contains(.pdx))
+        #expect(!ColorChoice.boards(pdxUnlocked: false).contains(.pdx))
+        #expect(ColorChoice.boards(pdxUnlocked: true).contains(.pdx))
+
+        let defaults = try #require(UserDefaults(suiteName: "skateTests.\(UUID().uuidString)"))
+        let progress = Progress(defaults: defaults)
+        for index in 0..<7 { progress.collect(letter: index, in: .portland) }
+        #expect(!progress.hasPDXBoard)
+        progress.collect(letter: 7, in: .portland)
+        #expect(progress.hasPDXBoard)
+    }
+
+    @Test func goalsAreSaved() throws {
+        let defaults = try #require(UserDefaults(suiteName: "skateTests.\(UUID().uuidString)"))
+        let progress = Progress(defaults: defaults)
+        let goal = Level.downtown.goals[0]
+        #expect(progress.complete(goal: goal, at: .downtown))
+        #expect(!progress.complete(goal: goal, at: .downtown))
+        #expect(progress.goalsDone(at: .downtown) == [goal.id])
+    }
+
+    @Test func the360FlipIsTheHardestButNotTooHard() {
+        #expect(Trick.threeSixtyFlip.airTime > Trick.shoveIt.airTime)
+        #expect(Trick.threeSixtyFlip.airTime < 0.5)
     }
 }

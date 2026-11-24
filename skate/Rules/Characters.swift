@@ -21,8 +21,17 @@ nonisolated enum SkaterKind: String, CaseIterable, Codable, Sendable {
 /// The colors you can pick for clothes, hats and boards.
 nonisolated enum ColorChoice: String, CaseIterable, Codable, Sendable {
     case black, white, grey, red, orange, yellow, green, teal, blue, navy, purple, pink, khaki, brown
+    /// The PDX airport carpet: teal with little bits of color. Boards only, and only once
+    /// you've spelled PORTLAND.
+    case pdx
 
-    var name: String { rawValue.uppercased() }
+    var name: String { self == .pdx ? "PDX CARPET" : rawValue.uppercased() }
+
+    /// The colors for shirts, pants and hats.
+    static var clothes: [ColorChoice] { allCases.filter { $0 != .pdx } }
+
+    /// The boards you can pick: the reward board joins the list once it's won.
+    static func boards(pdxUnlocked: Bool) -> [ColorChoice] { pdxUnlocked ? clothes + [.pdx] : clothes }
 
     var hex: UInt32 {
         switch self {
@@ -40,6 +49,7 @@ nonisolated enum ColorChoice: String, CaseIterable, Codable, Sendable {
         case .pink: 0xF878B8
         case .khaki: 0xC8A870
         case .brown: 0x7C3C00
+        case .pdx: 0x1C7470
         }
     }
 
@@ -67,5 +77,5 @@ nonisolated struct Outfit: Codable, Equatable, Sendable {
     }
 
     /// Hats include "no hat" at the end of the list.
-    static var hatChoices: [ColorChoice?] { ColorChoice.allCases.map { Optional($0) } + [nil] }
+    static var hatChoices: [ColorChoice?] { ColorChoice.clothes.map { Optional($0) } + [nil] }
 }

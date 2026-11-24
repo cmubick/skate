@@ -57,13 +57,23 @@ nonisolated enum Trick: Equatable, Sendable {
         switch self {
         case .grab: 0.22
         case .kickflip, .heelflip: 0.32
-        case .shoveIt: 0.28
-        case .threeSixtyFlip: 0.48
+        case .shoveIt: 0.34
+        case .threeSixtyFlip: 0.46
         default: 0
         }
     }
 
     var isGrind: Bool { self == .fiftyFifty || self == .boardslide }
+
+    /// How much the trick multiplies the points for clearing something while you do it.
+    var clearStyle: Double {
+        switch self {
+        case .grab: 1.5
+        case .kickflip, .heelflip, .shoveIt: 2
+        case .threeSixtyFlip: 3
+        default: 1
+        }
+    }
 
     /// The flip trick for a swipe in the air.
     static func flip(for direction: SwipeDirection) -> Trick {
@@ -85,10 +95,12 @@ nonisolated struct Combo: Equatable, Sendable {
     }
 
     private(set) var entries: [Entry] = []
+    /// Points for things cleared along the way. They ride on the combo's multiplier too.
+    private(set) var bonus: Double = 0
 
     var isEmpty: Bool { entries.isEmpty }
     var multiplier: Int { entries.count }
-    var points: Int { Int(entries.reduce(0) { $0 + $1.points }) }
+    var points: Int { Int(entries.reduce(bonus) { $0 + $1.points }) }
     var total: Int { points * multiplier }
 
     mutating func add(_ trick: Trick) {
@@ -101,8 +113,13 @@ nonisolated struct Combo: Equatable, Sendable {
         entries[entries.count - 1].points += points
     }
 
+    mutating func addBonus(_ points: Double) {
+        bonus += points
+    }
+
     mutating func clear() {
         entries.removeAll()
+        bonus = 0
     }
 
     /// The combo as the player sees it, newest tricks last.

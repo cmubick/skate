@@ -23,6 +23,8 @@ class PixelScene: SKScene {
     var safeInsets: UIEdgeInsets = .zero { didSet { if oldValue != safeInsets { layoutScene() } } }
     /// How many points one game pixel takes up on screen.
     var pointsPerPixel: CGFloat = 1 { didSet { if oldValue != pointsPerPixel { layoutScene() } } }
+    /// How many screen pixels one game pixel takes up (12 on an iPhone 18 Pro).
+    var screenPixelsPerPixel = 1 { didSet { if oldValue != screenPixelsPerPixel { layoutScene() } } }
 
     /// The safe area in game pixels, with the origin at the bottom left of the screen.
     var safeFrame: CGRect {
@@ -154,17 +156,29 @@ final class MenuScene: PixelScene {
 
     override func didMove(to view: SKView) {
         anchorPoint = .zero
-        let look = ThemeArt.look(for: .downtown)
+        let look = ThemeArt.look(for: .skidmore)
         backgroundColor = look.sky.skColor
         addChild(backdrop)
         let groundTop = CGFloat(StreetArt.groundTop)
         strips = look.layers.enumerated().map { index, layer in
             ParallaxStrip(texture: layer.texture, factor: layer.factor, y: groundTop + layer.lift, z: CGFloat(-30 + index * 10))
-        } + [ParallaxStrip(texture: look.ground, factor: 1, y: 0, z: -5)]
+        } + [ParallaxStrip(texture: look.ground, factor: 1, y: 0, z: -5)] + skidmorePlaza()
         strips.forEach { backdrop.addChild($0.node) }
         content.zPosition = 50
         addChild(content)
         layoutScene()
+    }
+
+    /// Skidmore Fountain going by on the back of the plaza, and the MAX tracks along the front.
+    private func skidmorePlaza() -> [ParallaxStrip] {
+        let fountain = FeatureArt.fountain(width: 64)
+        var spaced = PixelCanvas(width: 300, height: fountain.height)
+        spaced.draw(fountain, x: 0, y: 0)
+        let tracks = FeatureArt.tracks(width: 60)
+        return [
+            ParallaxStrip(texture: tracks.texture(), factor: 1, y: StreetArt.baseline(forLane: CGFloat(Lane.front.rawValue)), z: -4),
+            ParallaxStrip(texture: spaced.texture(), factor: 1, y: StreetArt.baseline(forLane: CGFloat(Lane.back.rawValue)), z: -3),
+        ]
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -280,9 +294,16 @@ final class MenuScene: PixelScene {
         label("\(cityIndex + 1)/\(City.all.count)", at: CGPoint(x: safe.maxX - 4, y: safe.maxY - 8),
               anchor: CGPoint(x: 1, y: 0.5), color: PixelColor(0x9C9C9C))
 
-        let nameScale: CGFloat = PixelFont.width(of: city.name) * 2 > Int(safe.width - 50) ? 1 : 2
-        label(city.name, at: CGPoint(x: safe.midX, y: safe.midY + 10), color: city.isOpen ? Palette.white : PixelColor(0x9C9C9C),
-              scale: nameScale)
+        // As big as fits between the arrows, up to double size.
+        let nameWidth = PixelFont.width(of: city.name)
+        let nameScale = PixelFont.fittingScale(width: nameWidth, into: safe.width - 44, maxScale: 2,
+                                               screenPixelsPerPixel: screenPixelsPerPixel)
+        // Line the left edge up with a screen pixel, so every letter stays sharp.
+        let screenPixel = 1 / CGFloat(max(1, screenPixelsPerPixel))
+        let nameLeft = ((safe.midX - CGFloat(nameWidth) * nameScale / 2) / screenPixel).rounded() * screenPixel
+        let name = label(city.name, at: .zero, anchor: CGPoint(x: 0, y: 0.5),
+                         color: city.isOpen ? Palette.white : PixelColor(0x9C9C9C), scale: nameScale)
+        name.position = CGPoint(x: nameLeft, y: safe.midY + 10)
         button("<", at: CGPoint(x: safe.minX + 12, y: safe.midY + 10)) { [weak self] in self?.changeCity(by: -1) }
         button(">", at: CGPoint(x: safe.maxX - 12, y: safe.midY + 10)) { [weak self] in self?.changeCity(by: 1) }
 
@@ -326,7 +347,16 @@ final class MenuScene: PixelScene {
                 (String(city.letters[$0]), found.contains($0) ? Palette.yellow : PixelColor(0x9C9C9C))
             }
             if !runs.isEmpty {
-                runsLabel(runs, at: CGPoint(x: safe.maxX - 34, y: y), anchor: CGPoint(x: 1, y: 0.5))
+                runsLabel(runs, at: CGPoint(x: safe.maxX - 50, y: y), anchor: CGPoint(x: 1, y: 0.5))
+            }
+            // A dot for each goal: yellow once it's done.
+            let done = progress.goalsDone(at: level)
+            for (index, goal) in level.goals.enumerated() {
+                let dot = SKSpriteNode(color: (done.contains(goal.id) ? Palette.yellow : PixelColor(0x5C5C5C)).skColor,
+                                       size: CGSize(width: 2, height: 2))
+                dot.anchorPoint = .zero
+                dot.position = CGPoint(x: (safe.maxX - 44 + CGFloat(index * 3)).rounded(), y: (y - 1).rounded())
+                content.addChild(dot)
             }
             let best = progress.bestScore(at: level)
             if best > 0 {
@@ -359,16 +389,16 @@ final class MenuScene: PixelScene {
                 outfit.kind = Outfit.cycle(outfit.kind, in: SkaterKind.allCases, step: step)
             },
             Row(title: outfit.kind.isDog ? "BANDANA" : "SHIRT", value: outfit.shirt.name, enabled: true) { outfit, step in
-                outfit.shirt = Outfit.cycle(outfit.shirt, in: ColorChoice.allCases, step: step)
+                outfit.shirt = Outfit.cycle(outfit.shirt, in: ColorChoice.clothes, step: step)
             },
             Row(title: "PANTS", value: outfit.kind.wearsPants ? outfit.pants.name : "-", enabled: outfit.kind.wearsPants) { outfit, step in
-                outfit.pants = Outfit.cycle(outfit.pants, in: ColorChoice.allCases, step: step)
+                outfit.pants = Outfit.cycle(outfit.pants, in: ColorChoice.clothes, step: step)
             },
             Row(title: "HAT", value: outfit.hat?.name ?? "NONE", enabled: true) { outfit, step in
                 outfit.hat = Outfit.cycle(outfit.hat, in: Outfit.hatChoices, step: step)
             },
             Row(title: "BOARD", value: outfit.board.name, enabled: true) { outfit, step in
-                outfit.board = Outfit.cycle(outfit.board, in: ColorChoice.allCases, step: step)
+                outfit.board = Outfit.cycle(outfit.board, in: ColorChoice.boards(pdxUnlocked: Progress.shared.hasPDXBoard), step: step)
             },
         ]
         for (index, row) in rows.enumerated() {

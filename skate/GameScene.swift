@@ -37,6 +37,8 @@ final class GameScene: PixelScene {
     private let skater = SKNode()
     private let body = SKSpriteNode()
     private let board = SKSpriteNode()
+    /// The last picture of a spinning board, so each new one leaves a ghost behind.
+    private var lastSpinStep: Int?
     private let shadow = SKSpriteNode(texture: StreetArt.shadow())
     private var sparkTimer: TimeInterval = 0
     /// How far the camera has risen to keep a high jump on screen.
@@ -50,7 +52,32 @@ final class GameScene: PixelScene {
     private let comboLabel = PixelLabel(anchor: CGPoint(x: 0.5, y: 1))
     private let multiplierLabel = PixelLabel(anchor: CGPoint(x: 0.5, y: 1))
     private let lettersLabel = SKSpriteNode()
-    private let pauseButton = PixelButton("II") {}
+    private let pauseButton = PixelButton(PixelFont.pauseSymbol) {}
+
+    /// The combo meter: drains while you roll after a landing. Trick again before it's gone.
+    private let comboMeter = SKSpriteNode(color: Palette.yellow.skColor, size: CGSize(width: 1, height: 2))
+    private var comboMeterOrigin: CGPoint = .zero
+    private static let comboMeterWidth: CGFloat = 40
+    /// Goal and gap banners, callouts and the city celebration, over the street.
+    private let banners = SKNode()
+
+    // Goals.
+    private var goalTracker: GoalTracker
+    /// Done on earlier runs, and done on this one.
+    private let goalsBefore: Set<String>
+    private var goalsThisRun: Set<String> = []
+    private let cityWasComplete: Bool
+    private var cityCompletedThisRun = false
+
+    // Feel.
+    private var timeScale = 1.0
+    private var slowMoLeft: TimeInterval = 0
+    private var shakeLeft: TimeInterval = 0
+    /// The biggest callout given for the combo going now.
+    private var announcedTier = 0
+    private static let callouts: [(points: Int, text: String)] = [
+        (1000, "SICK!"), (2500, "GNARLY!"), (5000, "RADICAL!"), (10000, "LEGENDARY!"),
+    ]
 
     /// The pause menu or the end-of-run results, over everything.
     private let overlay = SKNode()
@@ -63,6 +90,9 @@ final class GameScene: PixelScene {
         self.city = city
         look = SkaterLook(outfit: outfit)
         run = Run(level: level)
+        goalsBefore = Progress.shared.goalsDone(at: level)
+        goalTracker = GoalTracker(goals: level.goals, alreadyMet: goalsBefore)
+        cityWasComplete = Progress.shared.isComplete(city)
         super.init(size: size)
     }
 
@@ -145,6 +175,12 @@ final class GameScene: PixelScene {
         cam.addChild(lettersLabel)
         pauseButton.zPosition = 100
         cam.addChild(pauseButton)
+        comboMeter.anchorPoint = CGPoint(x: 0, y: 0.5)
+        comboMeter.zPosition = 100
+        comboMeter.isHidden = true
+        cam.addChild(comboMeter)
+        banners.zPosition = 150
+        cam.addChild(banners)
         overlay.zPosition = 200
         cam.addChild(overlay)
 
@@ -153,6 +189,7 @@ final class GameScene: PixelScene {
         updateLettersLabel()
         layoutScene()
         render()
+        if !level.goals.isEmpty { showIntro() }
 
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive),
                                                name: UIApplication.willResignActiveNotification, object: nil)
@@ -169,11 +206,15 @@ final class GameScene: PixelScene {
         let safe = safeFrame.offsetBy(dx: -size.width / 2, dy: -size.height / 2)
         let line = CGFloat(PixelFont.glyphHeight + 3)
         scoreLabel.position = CGPoint(x: safe.minX, y: safe.maxY)
-        bestLabel.position = CGPoint(x: safe.minX, y: safe.maxY - line)
-        comboLabel.position = CGPoint(x: 0, y: safe.maxY - line)
-        multiplierLabel.position = CGPoint(x: 0, y: safe.maxY - line * 2)
+        placeBestLabel()
         lettersLabel.position = CGPoint(x: safe.minX, y: (safe.minY + 1).rounded())
         pauseButton.position = CGPoint(x: (safe.maxX - 8).rounded(), y: (safe.maxY - 6).rounded())
+        // The combo (or a tip) gets the whole second line, centered in the room left of the pause button.
+        let pauseLeft = pauseButton.calculateAccumulatedFrame().minX
+        let middle = ((safe.minX + pauseLeft - 2) / 2).rounded(.down)
+        comboLabel.position = CGPoint(x: middle, y: safe.maxY - line)
+        multiplierLabel.position = CGPoint(x: middle, y: safe.maxY - line * 2)
+        comboMeterOrigin = CGPoint(x: middle - Self.comboMeterWidth / 2, y: safe.maxY - line * 3 + 1)
         strips.forEach { $0.layout(viewWidth: size.width) }
     }
 
@@ -247,11 +288,20 @@ final class GameScene: PixelScene {
         guard !isOnBreak else { return }
         apply(gestures.tick(time: currentTime))
 
+        // Slow motion for a moment after something big.
+        if slowMoLeft > 0 {
+            slowMoLeft -= dt
+            if slowMoLeft <= 0 { timeScale = 1 }
+        }
+        shakeLeft = max(0, shakeLeft - dt)
+
         // Fixed steps, so the run plays the same at any frame rate.
-        stepTime += dt
+        stepTime += dt * timeScale
         while stepTime >= Self.step {
             stepTime -= Self.step
-            react(run.step(Self.step))
+            let events = run.step(Self.step)
+            trackGoals(events)
+            react(events)
         }
         sparkTimer += dt
         // A safety net: whatever happened, no rumble or grind sound unless on a rail.
@@ -273,30 +323,99 @@ final class GameScene: PixelScene {
 
     // MARK: Pause and results
 
-    private func showOverlay(title: String, lines: [(String, PixelColor)], buttons: [(String, PixelColor, () -> Void)]) {
+    /// One line on the pause menu or results: crossed out when it's a goal that's done,
+    /// or a row of hopping letters for a city just spelled.
+    private struct OverlayLine {
+        var text: String
+        var color: PixelColor
+        var struck = false
+        var hopping = false
+    }
+
+    /// A title across the top, one or two columns of lines, and buttons along the bottom.
+    private func showOverlay(title: String, columns: [[OverlayLine]], buttons: [(String, PixelColor, () -> Void)]) {
         overlay.removeAllChildren()
         overlayButtons.removeAll()
-        let dim = SKSpriteNode(color: SKColor(white: 0, alpha: 0.6), size: CGSize(width: size.width + 4, height: size.height + 4))
+        setHudHidden(true)
+        let dim = SKSpriteNode(color: SKColor(white: 0, alpha: 0.75), size: CGSize(width: size.width + 4, height: size.height + 4))
         dim.zPosition = -1
         overlay.addChild(dim)
 
-        var y = CGFloat(10 * (lines.count + 1) / 2) + 10
-        for (text, color) in [(title, Palette.yellow)] + lines {
-            let label = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
-            label.ink = color
-            label.text = text
-            label.position = CGPoint(x: 0, y: y.rounded())
-            overlay.addChild(label)
-            y -= 10
+        let rows = columns.map(\.count).max() ?? 0
+        let top = CGFloat(10 * (rows + 1) / 2) + 10
+        addOverlayLabel(OverlayLine(text: title, color: Palette.yellow), at: CGPoint(x: 0, y: top))
+        let half = (safeFrame.width / 4).rounded()
+        for (index, column) in columns.enumerated() {
+            let x: CGFloat = columns.count == 1 ? 0 : (index == 0 ? -half : half)
+            for (row, line) in column.enumerated() {
+                addOverlayLabel(line, at: CGPoint(x: x, y: top - CGFloat(10 * (row + 1))))
+            }
         }
+        let buttonY = top - CGFloat(10 * (rows + 1)) - 6
         let spacing: CGFloat = 52
         let firstX = -spacing * CGFloat(buttons.count - 1) / 2
         for (index, (text, color, action)) in buttons.enumerated() {
             let button = PixelButton(text, minWidth: 46, color: color, action: action)
-            button.position = CGPoint(x: (firstX + CGFloat(index) * spacing).rounded(), y: (y - 6).rounded())
+            button.position = CGPoint(x: (firstX + CGFloat(index) * spacing).rounded(), y: buttonY.rounded())
             overlay.addChild(button)
             overlayButtons.append(button)
         }
+    }
+
+    private func addOverlayLabel(_ line: OverlayLine, at point: CGPoint) {
+        let point = CGPoint(x: point.x.rounded(), y: point.y.rounded())
+        if line.hopping {
+            // Each letter hops in turn, over and over.
+            let letters = line.text.map(String.init)
+            let width = CGFloat(PixelFont.width(of: line.text))
+            var x = point.x - (width / 2).rounded()
+            for (index, letter) in letters.enumerated() {
+                let label = PixelLabel(anchor: CGPoint(x: 0, y: 0.5))
+                label.ink = index.isMultiple(of: 2) ? Palette.yellow : Palette.orange
+                label.text = letter
+                label.position = CGPoint(x: x, y: point.y)
+                overlay.addChild(label)
+                label.run(.sequence([
+                    .wait(forDuration: Double(index) * 0.08),
+                    .repeatForever(.sequence([
+                        .moveBy(x: 0, y: 3, duration: 0.1), .moveBy(x: 0, y: -3, duration: 0.1), .wait(forDuration: 0.9),
+                    ])),
+                ]))
+                x += CGFloat(PixelFont.width(of: letter) + PixelFont.gap)
+            }
+            return
+        }
+        let label = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
+        label.ink = line.color
+        label.text = line.text
+        label.position = point
+        overlay.addChild(label)
+        if line.struck {
+            let width = CGFloat(PixelFont.width(of: line.text) + 2)
+            let strike = SKSpriteNode(color: line.color.skColor, size: CGSize(width: width, height: 1))
+            strike.position = CGPoint(x: point.x, y: point.y + 0.5)
+            strike.zPosition = 1
+            overlay.addChild(strike)
+        }
+    }
+
+    /// The spot's goals, crossed out once done.
+    private func goalLines() -> [OverlayLine] {
+        let doneCount = level.goals.filter { goalsBefore.contains($0.id) || goalsThisRun.contains($0.id) }.count
+        return [OverlayLine(text: "GOALS \(doneCount)/\(level.goals.count)", color: Palette.yellow)] + level.goals.map { goal in
+            if goalsThisRun.contains(goal.id) { return OverlayLine(text: goal.text, color: Palette.yellow, struck: true) }
+            if goalsBefore.contains(goal.id) { return OverlayLine(text: goal.text, color: PixelColor(0x8C8C8C), struck: true) }
+            return OverlayLine(text: goal.text, color: Palette.white)
+        }
+    }
+
+    /// Before the run: the spot's goals, so you know what to go for.
+    private func showIntro() {
+        isOnBreak = true
+        showOverlay(title: level.name, columns: [goalLines()], buttons: [
+            ("GO", PixelColor(0x00A844), { [weak self] in self?.closePauseMenu() }),
+            ("SPOTS", PixelColor(0x24308C), { [weak self] in self?.leave() }),
+        ])
     }
 
     private func openPauseMenu() {
@@ -304,14 +423,22 @@ final class GameScene: PixelScene {
         activeTouch = nil
         gestures = GestureReader()
         stopGrindFeedback()
-        showOverlay(title: "PAUSED", lines: [(level.name, Palette.white)], buttons: [
+        showOverlay(title: "PAUSED", columns: [goalLines()], buttons: [
             ("RESUME", PixelColor(0x00A844), { [weak self] in self?.closePauseMenu() }),
             ("QUIT", PixelColor(0x24308C), { [weak self] in self?.leave() }),
         ])
     }
 
+    /// The HUD steps aside while a menu or the results are up.
+    private func setHudHidden(_ hidden: Bool) {
+        for node in [scoreLabel, bestLabel, comboLabel, multiplierLabel, lettersLabel, pauseButton, banners] as [SKNode] {
+            node.alpha = hidden ? 0 : 1
+        }
+    }
+
     private func closePauseMenu() {
         isOnBreak = false
+        setHudHidden(false)
         overlay.removeAllChildren()
         overlayButtons.removeAll()
         lastUpdate = nil
@@ -324,12 +451,27 @@ final class GameScene: PixelScene {
 
     private func showResults(score: Int) {
         let isBest = progress.record(score: score, at: level)
-        let foundHere = run.lettersFound.sorted().map { String(city.letters[$0]) }.joined(separator: " ")
-        var lines: [(String, PixelColor)] = [
-            ("SCORE \(score)", Palette.white),
-            (isBest ? "NEW BEST!" : "BEST \(progress.bestScore(at: level))", isBest ? Palette.yellow : Palette.lightGrey),
+        let columnWidth = Int(safeFrame.width / 2) - 6
+        var stats: [OverlayLine] = [
+            OverlayLine(text: "SCORE \(score)", color: Palette.white),
+            OverlayLine(text: isBest ? "NEW BEST!" : "BEST \(progress.bestScore(at: level))",
+                        color: isBest ? Palette.yellow : Palette.lightGrey),
         ]
-        if !foundHere.isEmpty { lines.append(("LETTERS: \(foundHere)", Palette.yellow)) }
+        if run.bestCombo > 0 {
+            stats.append(OverlayLine(text: "COMBO \(run.bestCombo)", color: Palette.white))
+            // As many of its last tricks as fit.
+            let tricks = run.bestComboTricks.components(separatedBy: " + ").filter { $0 != "..." }
+            var shown = tricks.suffix(2).joined(separator: " + ")
+            if PixelFont.width(of: shown) > columnWidth { shown = tricks.last ?? "" }
+            stats.append(OverlayLine(text: shown, color: Palette.lightGrey))
+        }
+        if cityCompletedThisRun {
+            stats.append(OverlayLine(text: city.name.filter { $0 != " " }, color: Palette.yellow, hopping: true))
+            stats.append(OverlayLine(text: "PDX BOARD!", color: Palette.orange))
+        } else {
+            let foundHere = run.lettersFound.sorted().map { String(city.letters[$0]) }.joined(separator: " ")
+            if !foundHere.isEmpty { stats.append(OverlayLine(text: "FOUND \(foundHere)", color: Palette.yellow)) }
+        }
 
         var buttons: [(String, PixelColor, () -> Void)] = [
             ("AGAIN", PixelColor(0x00A844), { [weak self] in
@@ -345,7 +487,115 @@ final class GameScene: PixelScene {
             }))
         }
         buttons.append(("SPOTS", PixelColor(0x24308C), { [weak self] in self?.leave() }))
-        showOverlay(title: "FINISH!", lines: lines, buttons: buttons)
+        let columns = level.goals.isEmpty ? [stats] : [stats, goalLines()]
+        showOverlay(title: "FINISH!", columns: columns, buttons: buttons)
+    }
+
+    // MARK: Goals
+
+    private func trackGoals(_ events: [RunEvent]) {
+        for goal in goalTracker.update(run: run, events: events, dt: Self.step) {
+            progress.complete(goal: goal, at: level)
+            goalsThisRun.insert(goal.id)
+            Sounds.shared.play(.letter)
+            Haptics.land(perfect: true)
+            showBanner(goal.text, title: "GOAL!", color: Palette.yellow)
+        }
+    }
+
+    /// A banner across the top of the street for a moment: a goal done, or a gap.
+    private func showBanner(_ text: String, title: String, color: PixelColor) {
+        let stack = banners.children.filter { $0.name == "banner" }.count
+        let banner = SKNode()
+        banner.name = "banner"
+        let safe = safeFrame.offsetBy(dx: -size.width / 2, dy: -size.height / 2)
+        let y = (safe.maxY - 34 - CGFloat(stack) * 11).rounded()
+        let label = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
+        label.ink = color
+        label.text = "\(title) \(text)"
+        let back = SKSpriteNode(color: SKColor(white: 0, alpha: 0.55),
+                                size: CGSize(width: label.size.width + 8, height: label.size.height + 3))
+        back.zPosition = -1
+        banner.addChild(back)
+        banner.addChild(label)
+        banner.position = CGPoint(x: 0, y: y + 6)
+        banner.alpha = 0
+        banners.addChild(banner)
+        banner.run(.sequence([
+            .group([.fadeIn(withDuration: 0.12), .moveBy(x: 0, y: -6, duration: 0.12)]),
+            .wait(forDuration: 1.4),
+            .fadeOut(withDuration: 0.3),
+            .removeFromParent(),
+        ]))
+    }
+
+    // MARK: Big moments
+
+    private func slowMotion(for seconds: TimeInterval, scale: Double = 0.35) {
+        timeScale = scale
+        slowMoLeft = max(slowMoLeft, seconds)
+    }
+
+    /// SICK!, GNARLY! and so on, once each as a combo grows.
+    private func checkCallout(total: Int) {
+        guard let tier = Self.callouts.lastIndex(where: { total >= $0.points }), tier + 1 > announcedTier else { return }
+        announcedTier = tier + 1
+        let label = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
+        label.ink = [Palette.yellow, Palette.orange, PixelColor(0xF878B8), Palette.white][min(tier, 3)]
+        label.text = Self.callouts[tier].text
+        label.setScale(2)
+        label.position = CGPoint(x: 0, y: 6)
+        banners.addChild(label)
+        label.run(.sequence([
+            .moveBy(x: 0, y: 4, duration: 0.15),
+            .wait(forDuration: 0.6),
+            .fadeOut(withDuration: 0.3),
+            .removeFromParent(),
+        ]))
+        Haptics.land(perfect: true)
+        slowMotion(for: 0.45)
+    }
+
+    /// The last letter of the city: the name hops in, letter by letter, and the reward shows.
+    private func celebrateCity() {
+        let name = city.name.filter { $0 != " " }
+        let letters = name.map(String.init)
+        let width = CGFloat(PixelFont.width(of: name) * 2)
+        var x = -(width / 2).rounded()
+        let colors = [Palette.yellow, Palette.orange, PixelColor(0xF878B8), Palette.white]
+        for (index, letter) in letters.enumerated() {
+            let label = PixelLabel(anchor: CGPoint(x: 0, y: 0.5))
+            label.ink = colors[index % colors.count]
+            label.text = letter
+            label.setScale(2)
+            label.position = CGPoint(x: x, y: 4)
+            label.alpha = 0
+            banners.addChild(label)
+            var flash = 0
+            label.run(.sequence([
+                .wait(forDuration: 0.1 * Double(index)),
+                .group([.fadeIn(withDuration: 0.05), .sequence([.moveBy(x: 0, y: 8, duration: 0.1), .moveBy(x: 0, y: -8, duration: 0.12)])]),
+                .repeat(.sequence([
+                    .wait(forDuration: 0.1),
+                    .run { flash += 1; label.ink = colors[(index + flash) % colors.count] },
+                ]), count: 16),
+                .fadeOut(withDuration: 0.3),
+                .removeFromParent(),
+            ]))
+            x += CGFloat((PixelFont.width(of: letter) + PixelFont.gap) * 2)
+        }
+        let reward = PixelLabel(anchor: CGPoint(x: 0.5, y: 0.5))
+        reward.ink = Palette.white
+        reward.text = "\(city.name) SPELLED! PDX BOARD"
+        reward.position = CGPoint(x: 0, y: -14)
+        reward.alpha = 0
+        banners.addChild(reward)
+        reward.run(.sequence([.wait(forDuration: 0.9), .fadeIn(withDuration: 0.1), .wait(forDuration: 1.6),
+                              .fadeOut(withDuration: 0.3), .removeFromParent()]))
+        for _ in 0..<24 { spark(z: skater.zPosition + 6) }
+        Sounds.shared.play(.finish)
+        Haptics.finish()
+        slowMotion(for: 0.8, scale: 0.4)
     }
 
     // MARK: Reacting
@@ -356,7 +606,7 @@ final class GameScene: PixelScene {
             case .ollie(let charged):
                 Sounds.shared.play(.pop)
                 Haptics.pop(charged: charged)
-            case .popOff:
+            case .popOff, .launched:
                 Sounds.shared.play(.pop)
                 Haptics.pop(charged: false)
             case .trickStarted:
@@ -368,18 +618,32 @@ final class GameScene: PixelScene {
                 Sounds.shared.play(.trick)
             case .grindEnded:
                 stopGrindFeedback()
-            case .landed(let points, let perfect):
+            case .landed(let perfect):
                 Sounds.shared.play(perfect ? .perfect : .land)
                 Haptics.land(perfect: perfect)
                 if perfect { popup("PERFECT!", color: Palette.yellow, rise: 8) }
+                checkCallout(total: run.combo.total)
+            case .landedTrick:
+                break
+            case .banked(let points):
+                checkCallout(total: points)
+                announcedTier = 0
                 if points > Int(Trick.ollie.basePoints) { popup("+\(points)", color: Palette.white, rise: 0) }
+            case .gap(let name, let points):
+                Sounds.shared.play(.perfect)
+                Haptics.land(perfect: true)
+                showBanner("+\(points)", title: name, color: Palette.orange)
             case .bail(let reason):
                 Sounds.shared.play(.bail)
                 Haptics.bail()
-                popup(reason == .fell ? "SPLASH!" : "BAIL", color: Palette.orange, rise: 0)
+                shakeLeft = 0.3
+                announcedTier = 0
+                popup(reason == .fell ? "MANHOLE!" : "BAIL", color: Palette.orange, rise: 0)
             case .laneSwitch:
                 Sounds.shared.play(.lane)
                 Haptics.tick()
+            case .cleared(let style, _, let points):
+                popup("\(style.name) +\(points)", color: Palette.yellow, rise: 16)
             case .letter(let index, let letter):
                 Sounds.shared.play(.letter)
                 Haptics.land(perfect: true)
@@ -388,6 +652,10 @@ final class GameScene: PixelScene {
                 letterNodes[index]?.removeFromParent()
                 letterNodes[index] = nil
                 updateLettersLabel()
+                if isNew, !cityWasComplete, !cityCompletedThisRun, progress.isComplete(city) {
+                    cityCompletedThisRun = true
+                    celebrateCity()
+                }
             case .finished(let score):
                 stopGrindFeedback()
                 Sounds.shared.play(.finish)
@@ -427,6 +695,12 @@ final class GameScene: PixelScene {
         let wantedLift = max(0, skaterTop - size.height)
         cameraLift += (wantedLift - cameraLift) * CGFloat(min(1, dt * 12))
         cam.position = CGPoint(x: cameraLeft + size.width / 2, y: size.height / 2 + cameraLift.rounded())
+        if shakeLeft > 0 {
+            // A bail rattles the screen for a moment, settling as it goes.
+            let amount = shakeLeft > 0.15 ? 2 : 1
+            cam.position.x += CGFloat(Int.random(in: -amount...amount))
+            cam.position.y += CGFloat(Int.random(in: -amount...amount))
+        }
         strips.forEach { $0.update(cameraLeft: cameraLeft) }
 
         // Moving things, and their walk cycles.
@@ -457,12 +731,15 @@ final class GameScene: PixelScene {
         board.zRotation = 0
         board.xScale = 1
         board.position = .zero
+        board.anchorPoint = CGPoint(x: 0.5, y: 0)
+        board.zPosition = 0
+        if let trick = run.airTrick?.trick, trick == .shoveIt || trick == .threeSixtyFlip {} else { lastSpinStep = nil }
         board.texture = look.boardSide
         body.position = CGPoint(x: 0, y: 3)
 
         switch run.state {
         case .rolling:
-            body.texture = run.isCharging ? look.crouch : look.roll
+            body.texture = look.roll
         case .airborne:
             if let trick = run.airTrick {
                 body.texture = trick.trick == .grab ? look.grab : look.air
@@ -494,10 +771,15 @@ final class GameScene: PixelScene {
         case .heelflip:
             board.texture = heelflip[frame]
         case .shoveIt:
-            board.xScale = steppedScale(cos(progress * .pi))
+            // Half a turn, flat, grip tape up.
+            spinBoard(step: Int((progress * Double(CharacterArt.spinSteps / 2)).rounded()), graphicUp: false,
+                      progress: progress)
+            return
         case .threeSixtyFlip:
-            board.texture = kickflip[frame]
-            board.xScale = steppedScale(cos(progress * 2 * .pi))
+            // A full turn, flipping over on the way: graphic and wheels up in the middle.
+            spinBoard(step: Int((progress * Double(CharacterArt.spinSteps)).rounded()), graphicUp: frame == 1 || frame == 2,
+                      progress: progress)
+            return
         default:
             return
         }
@@ -505,10 +787,31 @@ final class GameScene: PixelScene {
         board.position = CGPoint(x: 0, y: (4 * sin(progress * .pi)).rounded())
     }
 
-    /// Quarter steps, so a spinning board looks like animation frames, not a smooth squash.
-    private func steppedScale(_ value: Double) -> CGFloat {
-        let stepped = (value * 4).rounded() / 4
-        return CGFloat(abs(stepped) < 0.1 ? 0.125 : stepped)
+    /// The board spinning flat, out in front of the feet, leaving a fading trail behind.
+    private func spinBoard(step: Int, graphicUp: Bool, progress: Double) {
+        let index = step % CharacterArt.spinSteps
+        // Side-on at the start and end, so it leaves and comes back to the feet cleanly.
+        // Centered just under the shoes, with the knees tucked up a little to make room.
+        body.position = CGPoint(x: 0, y: 3 + (3 * sin(progress * .pi)).rounded())
+        board.zPosition = 1
+        if index == 0 || (!graphicUp && index == CharacterArt.spinSteps / 2) {
+            board.texture = look.boardSide
+        } else {
+            board.texture = graphicUp ? look.spinGraphicUp[index] : look.spinGripUp[index]
+            board.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+            board.position = CGPoint(x: 0, y: 1)
+        }
+        if index != lastSpinStep, let texture = board.texture {
+            lastSpinStep = index
+            let ghost = SKSpriteNode(texture: texture)
+            ghost.anchorPoint = board.anchorPoint
+            ghost.size = texture.size()
+            ghost.alpha = 0.45
+            ghost.position = CGPoint(x: skater.position.x + board.position.x, y: skater.position.y + board.position.y)
+            ghost.zPosition = skater.zPosition - 0.5
+            world.addChild(ghost)
+            ghost.run(.sequence([.fadeOut(withDuration: 0.12), .removeFromParent()]))
+        }
     }
 
     private func spark(z: CGFloat) {
@@ -529,9 +832,23 @@ final class GameScene: PixelScene {
         scoreLabel.text = "SCORE \(run.score)"
         let best = progress.bestScore(at: level)
         bestLabel.text = best > 0 ? "BEST \(best)" : ""
+        placeBestLabel()
         // The combo, or on the tutorial spot a hint when there's no combo going.
         comboLabel.text = run.combo.isEmpty ? hint() : run.combo.text(maxTricks: 2)
         multiplierLabel.text = run.combo.multiplier > 1 ? "X\(run.combo.multiplier)  \(run.combo.total)" : ""
+        if let left = run.comboLinkLeft {
+            comboMeter.isHidden = false
+            comboMeter.position = comboMeterOrigin
+            comboMeter.size = CGSize(width: max(1, (Self.comboMeterWidth * CGFloat(left / Tuning.comboLinkTime)).rounded()), height: 2)
+            comboMeter.color = left < 0.4 ? Palette.orange.skColor : Palette.yellow.skColor
+        } else {
+            comboMeter.isHidden = true
+        }
+    }
+
+    /// BEST sits on the score's line, just after the score.
+    private func placeBestLabel() {
+        bestLabel.position = CGPoint(x: scoreLabel.position.x + scoreLabel.size.width + 8, y: scoreLabel.position.y)
     }
 
     /// First-run help, shown along the start of the tutorial spot.
@@ -540,9 +857,10 @@ final class GameScene: PixelScene {
         switch run.x {
         case ..<330: return "TAP TO OLLIE. HOLD: HIGHER"
         case ..<640: return "SWIPE UP/DOWN: LANES"
-        case ..<1000: return "SWIPE SIDEWAYS: KICKFLIP"
-        case ..<1400: return "GRAB THE LETTERS"
-        case ..<1800: return "SWIPE IN THE AIR FOR MORE"
+        case ..<950: return "SWIPE SIDEWAYS: KICKFLIP"
+        case ..<1250: return "TAP IN THE AIR: GRAB"
+        case ..<1550: return "AIR SWIPE UP/DOWN: SPINS"
+        case ..<1800: return "TRICK AGAIN SOON: COMBO"
         default: return ""
         }
     }
