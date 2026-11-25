@@ -16,9 +16,10 @@ import UIKit
 final class Store {
     static let shared = Store()
 
-    /// Product identifiers. These must match the products set up in App Store Connect.
+    /// Product identifiers. These must match the products set up in App Store Connect
+    /// exactly (the tips there are com.tuesdaygames.*tip, unlike the other apps' <app>.tip.*).
     static let fullGameID = "skate.fullgame"
-    static let tipIDs = ["skate.tip.small", "skate.tip.medium", "skate.tip.large"]
+    static let tipIDs = ["com.tuesdaygames.smalltip", "com.tuesdaygames.mediumtip", "com.tuesdaygames.largetip"]
 
     /// Off until the other cities are ready. While off, the full game is never loaded or sold.
     static let fullGameOnSale = false

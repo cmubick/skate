@@ -271,15 +271,16 @@ you want it.
 
 ## In-app purchases
 
-Create the three tips under **Monetization → In-App Purchases** with exactly these
-product IDs (the app looks them up by ID). Display names match the store file
+The three tips under **Monetization → In-App Purchases** have these product IDs,
+and the app looks them up by ID, so they must match `Store.tipIDs` exactly.
+(1.0 used `skate.tip.*` IDs that didn't match, so its tip jar didn't work; 1.0.1 fixed it.) Display names match the store file
 and the tip jar's SMALL / GENEROUS / BIG, the same names as Mahjong and Sevens.
 
 | Product ID | Type | Reference name | Price | Display name (30 max) | Description (45 max) |
 |---|---|---|---|---|---|
-| `skate.tip.small` | Consumable | Small tip | $0.99 | Small tip [9] | A small thank-you to Tuesday Games. [35] |
-| `skate.tip.medium` | Consumable | Generous tip | $2.99 | Generous tip [12] | A generous thank-you to Tuesday Games. [38] |
-| `skate.tip.large` | Consumable | Big tip | $4.99 | Big tip [7] | A very generous thank-you to Tuesday Games. [43] |
+| `com.tuesdaygames.smalltip` | Consumable | Small tip | $0.99 | Small tip [9] | A small thank-you to Tuesday Games. [35] |
+| `com.tuesdaygames.mediumtip` | Consumable | Generous tip | $2.99 | Generous tip [12] | A generous thank-you to Tuesday Games. [38] |
+| `com.tuesdaygames.largetip` | Consumable | Big tip | $4.99 | Big tip [7] | A very generous thank-you to Tuesday Games. [43] |
 
 - **Promotional image** (optional, 1024 × 1024), in `upload/In-App Purchases/`:
   `promo-small-tip.png`, `promo-generous-tip.png` and `promo-big-tip.png`, one per tip,

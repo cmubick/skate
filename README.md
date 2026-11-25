@@ -392,9 +392,9 @@ Watch out for:
 
 | Product ID | Type | Price | Status |
 | --- | --- | --- | --- |
-| `skate.tip.small` | Consumable | $0.99 | Live in the app |
-| `skate.tip.medium` | Consumable | $2.99 | Live in the app |
-| `skate.tip.large` | Consumable | $4.99 | Live in the app |
+| `com.tuesdaygames.smalltip` | Consumable | $0.99 | Live in the app |
+| `com.tuesdaygames.mediumtip` | Consumable | $2.99 | Live in the app |
+| `com.tuesdaygames.largetip` | Consumable | $4.99 | Live in the app |
 | `skate.fullgame` | Non-consumable | $4.99 | **Not on sale yet** |
 
 - **The tip jar** is meant to be easy to find: a pink TIP JAR button sits on the

@@ -796,7 +796,7 @@ struct StoreTests {
     @Test func onlyTipsAreForSaleUntilTheOtherCitiesAreReady() {
         #expect(!Store.fullGameOnSale)
         #expect(Store.productIDs == Store.tipIDs)
-        #expect(Store.tipIDs == ["skate.tip.small", "skate.tip.medium", "skate.tip.large"])
+        #expect(Store.tipIDs == ["com.tuesdaygames.smalltip", "com.tuesdaygames.mediumtip", "com.tuesdaygames.largetip"])
         #expect(City.all.filter { !$0.isOpen }.count == 8)
     }
 

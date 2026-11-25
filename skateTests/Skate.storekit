@@ -28,7 +28,7 @@
           "locale": "en_US"
         }
       ],
-      "productID": "skate.tip.small",
+      "productID": "com.tuesdaygames.smalltip",
       "referenceName": "Small tip",
       "type": "Consumable"
     },
@@ -43,7 +43,7 @@
           "locale": "en_US"
         }
       ],
-      "productID": "skate.tip.medium",
+      "productID": "com.tuesdaygames.mediumtip",
       "referenceName": "Generous tip",
       "type": "Consumable"
     },
@@ -58,7 +58,7 @@
           "locale": "en_US"
         }
       ],
-      "productID": "skate.tip.large",
+      "productID": "com.tuesdaygames.largetip",
       "referenceName": "Big tip",
       "type": "Consumable"
     }
