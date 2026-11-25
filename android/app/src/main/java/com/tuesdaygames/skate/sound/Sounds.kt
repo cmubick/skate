@@ -37,9 +37,6 @@ object Sounds {
             if (value) stopAllLoops()
         }
 
-    /** True while any sound is coming out (so Music can tell ours from another app's). */
-    val isPlaying: Boolean get() = mixer?.isPlaying == true
-
     /** Makes every sound, so the first one plays without a hitch. Done on the first
      *  sound anyway; spots call it as they start. */
     fun prepare() {

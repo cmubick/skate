@@ -8,7 +8,8 @@
 //
 //  The audio is marked as game audio: it follows the media volume, and music
 //  from another app keeps playing underneath because the game never asks to
-//  take over the sound.
+//  take over the sound. (It's also how Music tells the game's sound from another
+//  app's music, which is marked as media.)
 //
 
 package com.tuesdaygames.skate.sound
@@ -59,6 +60,16 @@ class Mixer(private val sampleRate: Int, voiceCount: Int, private val name: Stri
             ensureRunning()
             lock.notifyAll()
         }
+    }
+
+    /** Sets what `voice` loops once `current` finishes, if `current` is still what it's
+     *  playing (a song's intro, started before the rest was ready). False if it isn't. */
+    fun setLoop(voice: Int, current: FloatArray, loop: FloatArray): Boolean = synchronized(lock) {
+        val v = voices[voice]
+        if (v.samples !== current || v.next != null) return false
+        v.next = loop
+        v.loopNext = true
+        true
     }
 
     fun setVolume(voice: Int, volume: Float) = synchronized(lock) { voices[voice].volume = volume }

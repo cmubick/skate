@@ -482,8 +482,8 @@ there at all.
   - the full game purchase
   - prices in currencies other than `$` in the pixel font
   - slow motion on big combos (built, switched off)
-  - on Android: a real-phone playtest, the Play Console setup and listing, and
-    release signing (see `android/README.md`)
+  - on Android: the Play Console setup and listing, and a playtest on a phone
+    (see `android/README.md`)
 
 ## Contributing
 
