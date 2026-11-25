@@ -4,6 +4,9 @@ Everything to paste into App Store Connect, field by field. Character limits are
 Apple's, and counts are in brackets. Items marked **YOU** need a decision or a
 detail only you have; nothing there is guessed.
 
+**Live:** approved and released 2026-11-24 as "Skate: Tuesday Games" (1.0),
+<https://apps.apple.com/app/id6838565677>. Apple ID 6838565677.
+
 Sources for the limits and rules: Apple's
 [asset best practices](https://developer.apple.com/app-store/asset-best-practices/),
 [product page](https://developer.apple.com/app-store/product-page/) guide, and the App

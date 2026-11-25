@@ -8,6 +8,8 @@ ollie, hold for a higher one, swipe to change lanes and to flip, grind rails and
 ledges, chain tricks into combos, clear things for points, find the city's
 letters, and work through each spot's goals.
 
+- **App Store:** live since 2026-11-24 as "Skate: Tuesday Games",
+  <https://apps.apple.com/app/id6838565677> (Apple ID 6838565677).
 - **Platform:** iOS and iPadOS 16 and later, landscape only. The Android version
   is in `android/` (see [Android](#android)).
 - **Engine:** Apple's **SpriteKit** inside a small **UIKit** app. No other game
